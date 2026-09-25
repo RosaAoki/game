@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ありんこドット 鬼ごっこ版</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+:root{
+  --loam:#3a2a1f; --deep:#231812; --crumb:#5b4433; --paper:#efe4cc; --dim:#bba98b;
+  --sand:#cdb993; --leaf:#93b85c;
+  --dot:"DotGothic16",ui-monospace,"Courier New",monospace;
+  font-family:"Hiragino Maru Gothic ProN","Zen Maru Gothic","Rounded Mplus 1c",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--loam);color:var(--paper);-webkit-tap-highlight-color:transparent}
+body{min-height:100dvh;display:flex;justify-content:center;overscroll-behavior:none}
+.app{width:100%;max-width:440px;padding:12px 12px calc(20px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:10px}
+header{display:flex;align-items:center;gap:8px}
+h1{font-size:19px;margin:0;font-weight:700;flex:1;letter-spacing:.03em}
+button{font:inherit;color:inherit;border:0;background:none;cursor:pointer;touch-action:manipulation}
+button:focus-visible{outline:3px solid var(--leaf);outline-offset:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chip{background:var(--crumb);padding:7px 12px;border-radius:999px;font-size:13px;line-height:1}
+.chip[aria-pressed="true"]{background:var(--paper);color:var(--deep)}
+.chip.ghost{background:none;box-shadow:inset 0 0 0 1.5px var(--crumb)}
+.guide{font-size:12.5px;color:var(--dim);margin:0;line-height:1.7}
+.stage{position:relative;background:var(--sand);border-radius:22px 22px 8px 8px;overflow:hidden;
+  box-shadow:inset 0 -10px 0 rgba(58,42,31,.18)}
+canvas{display:block;width:100%}
+.left{position:absolute;top:8px;right:12px;font-size:12px;color:#6b5540;font-weight:700}
+.hud{position:absolute;top:7px;left:12px;display:flex;gap:10px;font-size:12px;font-weight:700;color:#6b5540;pointer-events:none}
+.hud .oni{color:#a3262b}
+.hud .q{color:#4d7a2a}
+.hud .stall{color:#d8323a;animation:stallblink 1s steps(2) infinite}
+@keyframes stallblink{50%{opacity:.35}}
+.traits{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;margin:0 0 14px}
+.trait{display:flex;align-items:center;gap:5px;font-size:12.5px;background:#e3d6ba;border-radius:999px;padding:4px 10px 4px 5px}
+.trait i{width:14px;height:14px;border-radius:4px;display:inline-block}
+.stats{font-size:13px;color:#5b4433;margin:-6px 0 12px}
+.nest{display:flex;gap:6px}
+.pit{flex:1;min-width:0;height:50px;border-radius:25px 25px 12px 12px;background:var(--deep);
+  box-shadow:inset 0 5px 9px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;padding:5px}
+.pit.extra{box-shadow:inset 0 5px 9px rgba(0,0,0,.6),0 0 0 2px var(--leaf)}
+.tray{display:grid;gap:8px;padding-top:4px}
+.col{display:flex;flex-direction:column;gap:6px;min-width:0}
+.box{width:100%;height:44px;border-radius:11px;display:flex;align-items:center;justify-content:center;gap:5px;
+  font-weight:700;font-size:16px;font-variant-numeric:tabular-nums;
+  box-shadow:inset 0 -5px 0 rgba(0,0,0,.22),inset 0 2px 0 rgba(255,255,255,.35)}
+.pit .box{height:38px;font-size:14px;gap:3px}
+.box.back{opacity:.42;transform:scale(.9);height:34px;font-size:13px}
+.box.mystery{background:#6e5c4b!important;color:var(--paper)!important}
+.box.done{visibility:hidden}
+.more{font-size:12px;color:var(--dim);text-align:center}
+.shake{animation:shake .32s}
+@keyframes shake{25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--paper);color:var(--deep);padding:9px 16px;border-radius:999px;font-size:13px;font-weight:700;
+  opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+.overlay{position:fixed;inset:0;background:rgba(35,24,18,.72);display:none;align-items:center;justify-content:center;padding:24px;z-index:5}
+.overlay.on{display:flex}
+.card{background:var(--paper);color:var(--deep);border-radius:22px;padding:22px;width:100%;max-width:340px;text-align:center}
+.card h2{margin:0 0 6px;font-size:22px}
+.card p{margin:0 0 14px;font-size:14px;line-height:1.7;color:#5b4433}
+.card canvas{width:auto;max-width:100%;margin:0 auto 14px;image-rendering:pixelated;border-radius:6px}
+.card canvas[hidden]{display:none}
+.card .row{display:flex;flex-direction:column;gap:8px}
+.btn{background:var(--deep);color:var(--paper);padding:12px;border-radius:12px;font-weight:700;font-size:15px}
+.btn.sub{background:none;color:var(--deep);box-shadow:inset 0 0 0 1.5px #b9a58a}
+/* 操作モード */
+.autobar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.segs{display:inline-flex;background:var(--deep);border-radius:999px;padding:3px}
+.seg{padding:6px 12px;border-radius:999px;font-size:12.5px;color:var(--dim)}
+.seg[aria-pressed="true"]{background:var(--leaf);color:#1d2a10;font-weight:700}
+.autohint{font-size:11.5px;color:var(--dim);flex:1;min-width:10em;line-height:1.5}
+.box.pop{animation:pop .5s cubic-bezier(.2,1.8,.4,1)}
+@keyframes pop{0%{transform:scale(.55);filter:brightness(1.6)}100%{transform:scale(1);filter:none}}
+/* 観測レポート */
+.overlay.rp{align-items:flex-start;overflow-y:auto;padding:16px 12px calc(28px + env(safe-area-inset-bottom))}
+.report{position:relative;width:100%;max-width:400px;margin:auto;background:#f2e8d0;color:#3b2a1f;border-radius:6px;
+  padding:16px 16px 12px;text-align:left;box-shadow:0 18px 40px rgba(0,0,0,.35),inset 0 0 0 6px #f2e8d0,inset 0 0 0 7.5px #6b5540}
+.rp-head{display:flex;align-items:center;gap:10px;padding:4px 4px 10px;border-bottom:1.5px solid #6b5540}
+.rp-icon canvas{width:40px;display:block;image-rendering:pixelated}
+.rp-title{flex:1;font-family:var(--dot);line-height:1.05}
+.rp-title span{font-size:13px;letter-spacing:.08em}
+.rp-title strong{display:block;font-size:30px;font-weight:400;letter-spacing:.04em}
+.rp-no{font-family:var(--dot);text-align:right;border-left:1.5px solid #6b5540;padding-left:10px;line-height:1.2}
+.rp-no small{display:block;font-size:9.5px;color:#7a6650}
+.rp-no b{font-size:20px;font-weight:400}
+.stamp{position:absolute;right:10px;top:96px;font-family:var(--dot);font-size:26px;line-height:1;padding:3px 10px;
+  border:4px double currentColor;border-radius:8px;transform:rotate(-12deg);opacity:.86;mix-blend-mode:multiply;
+  animation:stamp .45s cubic-bezier(.2,1.5,.4,1) .3s both;pointer-events:none}
+.stamp.ok{color:#c8322f}.stamp.ng{color:#2f3f6b}
+@keyframes stamp{from{transform:rotate(-12deg) scale(2.6);opacity:0}to{transform:rotate(-12deg) scale(1);opacity:.86}}
+.rp-sum h3{margin:12px 0 4px;font-size:14px}
+.rp-sum p{margin:0;font-size:13.5px;line-height:1.7;max-width:57%}
+.rp-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:10px}
+.rp-box{border:1.5px solid #8a735a;border-radius:4px;padding:18px 10px 10px;position:relative;margin-top:16px;background:rgba(255,255,255,.2)}
+.rp-box h4{position:absolute;top:-10px;left:8px;margin:0;background:#4a3527;color:#f2e8d0;font-family:var(--dot);font-weight:400;
+  font-size:11.5px;letter-spacing:.06em;padding:2px 14px 2px 8px;clip-path:polygon(0 0,100% 0,calc(100% - 8px) 100%,0 100%)}
+.spec{text-align:center}
+.rp-art canvas{width:100%;max-width:130px;image-rendering:pixelated}
+.rp-name{margin:6px 0 0;font-weight:700;font-size:14px}
+.rp-tag{margin:0;font-size:11px;color:#7a6650}
+.report table{width:100%;border-collapse:collapse;font-size:12px}
+.report th{font-weight:400;text-align:left;padding:5px 0;border-bottom:1px dashed #b9a58a;white-space:nowrap}
+.report td{text-align:right;font-family:var(--dot);font-size:15px;border-bottom:1px dashed #b9a58a}
+.ic{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:1px}
+.ic.cube{background:#c9a27a}.ic.born{background:#c8322f}.ic.inf{background:#6b2a6b}.ic.cure{background:#7fb04f}.ic.q{background:#7a8a99}.ic.peak{background:#3b2a1f}
+.report .traits{justify-content:flex-start;margin:0}
+.note p{margin:0;font-size:13.5px;line-height:1.7}
+.report .row{display:flex;flex-direction:column;gap:8px;margin-top:16px}
+.rp-foot{display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin-top:12px;font-family:var(--dot);font-size:10px;color:#7a6650}
+.rp-foot span:last-child{text-align:right}
+@media (prefers-reduced-motion:reduce){.shake,.stamp,.box.pop{animation:none}.toast{transition:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>ありんこドット <small style="font-size:12px;color:var(--dim)">鬼ごっこ版</small></h1>
+    <button class="chip ghost" id="retry">やり直す</button>
+  </header>
+  <div class="chips" id="levels"></div>
+  <div class="autobar"><div class="segs" id="auto" role="group" aria-label="操作モード"></div><span class="autohint" id="autoHint"></span></div>
+  <p class="guide">箱をタップするとアリが絵を外側から食べます。鬼アリは近くの同じ色のアリを鬼にし、ちがう色のアリに会うと元に戻ります。鬼はタップで隔離。</p>
+  <div class="stage">
+    <canvas id="cv"></canvas>
+    <div class="hud"><span id="hNest"></span><span class="oni" id="hOni"></span><span class="q" id="hQ"></span><span class="stall" id="hStall"></span></div>
+    <div class="left" id="left"></div>
+  </div>
+  <div class="nest" id="nest"></div>
+  <div class="tray" id="tray"></div>
+</div>
+<input type="file" id="file" accept="image/*" hidden>
+<div class="toast" id="toast" role="status"></div>
+<div class="overlay" id="ov" role="dialog" aria-modal="true" aria-labelledby="ovt">
+  <div id="card" class="card"></div>
+</div>
+
+<script>
+"use strict";
+/* ========== 乱数 ========== */
+function rngOf(seed){let a=seed>>>0;return()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+
+/* ========== 絵(レベル) ========== */
+function fromRows(rows,map){
+  const w=Math.max(...rows.map(r=>r.length)),h=rows.length,keys=Object.keys(map);
+  const grid=new Int16Array(w*h).fill(-1);
+  rows.forEach((r,y)=>{for(let x=0;x<w;x++){const k=keys.indexOf(r[x]);if(k>=0)grid[y*w+x]=k}});
+  return{w,h,grid,palette:keys.map(k=>map[k])};
+}
+function diamond(){
+  const w=14,h=18,grid=new Int16Array(w*h),cx=6.5,cy=8.5;
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const d=Math.abs(x-cx)+Math.abs(y-cy);grid[y*w+x]=d<3.5?2:d<7.5?1:0}
+  return{w,h,grid,palette:["#e2507a","#3fb7cf","#d6db3c"]};
+}
+function mushroom(){
+  return fromRows([
+    "................",
+    ".....RRRRRR.....",
+    "...RRWWRRRRRR...",
+    "..RRWWWRRRWWRR..",
+    ".RRRRWRRRRWWWRR.",
+    ".RRRRRRRRRRWRRR.",
+    "RRWWRRRRRRRRRRRR",
+    "RWWWWRRRRWWRRRRR",
+    "RRWWRRRRWWWWRRRR",
+    ".RRRRRRRRWWRRRR.",
+    "....SSSSSSSS....",
+    "....SSKSSKSS....",
+    "....SSSSSSSS....",
+    "....SSSPPSSS....",
+    ".....SSSSSS.....",
+    "GGG..........GGG",
+    "GGGGGGGGGGGGGGGG",
+  ],{R:"#d8443c",W:"#f7f0e2",S:"#e9c894",K:"#232a4a",P:"#ef8fa0",G:"#6aa34a"});
+}
+function sunset(){
+  const w=18,h=18,grid=new Int16Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    let c=y<5?0:y<9?1:2;const dx=x-8.5,dy=y-11;if(dx*dx+dy*dy<16)c=3;
+    if(y>12.5+1.6*Math.sin(x/2.6+.5))c=4;if(y>15+1.1*Math.sin(x/2+2))c=5;grid[y*w+x]=c;
+  }
+  return{w,h,grid,palette:["#2c3870","#6c4c9e","#e0708a","#f5c542","#57a24e","#2f6b3a"]};
+}
+// 輪郭線（外周を1マス囲う）：中の色は輪郭を崩すまで食べられない
+function outlined(L,color,frame){
+  const w=L.w+2,h=L.h+2,grid=new Int16Array(w*h).fill(-1),o=L.palette.length;
+  for(let y=0;y<L.h;y++)for(let x=0;x<L.w;x++)grid[(y+1)*w+x+1]=L.grid[y*L.w+x];
+  const src=Int16Array.from(grid);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){const i=y*w+x;if(src[i]>=0)continue;
+    let near=frame&&(x===0||y===0||x===w-1||y===h-1);
+    for(let dy=-1;dy<=1&&!near;dy++)for(let dx=-1;dx<=1;dx++){const X=x+dx,Y=y+dy;
+      if(X>=0&&Y>=0&&X<w&&Y<h&&src[Y*w+X]>=0){near=true;break}}
+    if(near)grid[i]=o}
+  return{w,h,grid,palette:[...L.palette,color]};
+}
+const LEVELS=[
+  {name:"1",make:diamond,jitter:4,mystery:0,oni:{first:.5,mean:30}},
+  {name:"2",make:()=>outlined(mushroom(),"#6b4226"),jitter:16,big:.8,mystery:.15,oni:{first:.2,mean:9}},
+  {name:"3",make:()=>outlined(sunset(),"#b8863b",true),jitter:24,big:.7,mystery:.25,oni:{first:.15,mean:7}},
+];
+let customLevel=null;
+
+/* ========== 盤面ロジック ========== */
+// 外とつながった空きマスに接しているキューブ＝食べられる
+function computeOut(g,w,h){
+  const n=w*h,out=new Uint8Array(n),q=[];
+  const seed=i=>{if(g[i]<0&&!out[i]){out[i]=1;q.push(i)}};
+  for(let x=0;x<w;x++){seed(x);seed((h-1)*w+x)}
+  for(let y=0;y<h;y++){seed(y*w);seed(y*w+w-1)}
+  while(q.length){const i=q.pop(),x=i%w,y=(i/w)|0;
+    if(x>0)seed(i-1);if(x<w-1)seed(i+1);if(y>0)seed(i-w);if(y<h-1)seed(i+w)}
+  return out;
+}
+function exposedFrom(g,w,h,out){
+  const n=w*h,ex=new Uint8Array(n);
+  for(let i=0;i<n;i++){if(g[i]<0)continue;const x=i%w,y=(i/w)|0;
+    if(x===0||y===0||x===w-1||y===h-1||out[i-1]||out[i+1]||out[i-w]||out[i+w])ex[i]=1}
+  return ex;
+}
+function computeExposed(g,w,h){return exposedFrom(g,w,h,computeOut(g,w,h))}
+function nearest(g,ex,w,color,res,hx,hy){
+  let best=-1,bd=Infinity;
+  for(let i=0;i<g.length;i++){if(g[i]!==color||!ex[i]||(res&&res[i]))continue;
+    const dx=i%w+.5-hx,dy=((i/w)|0)+.5-hy,d=dx*dx+dy*dy;if(d<bd){bd=d;best=i}}
+  return best;
+}
+const holeOf=L=>({x:L.w/2,y:L.h+1.5});
+
+// 箱の並びを「実際に食べ進められる順」で作る
+function planBoxes(L,rng,big=1){
+  const{w,h}=L,g=Int16Array.from(L.grid),P=L.palette.length,H=holeOf(L);
+  let left=0;for(const v of g)if(v>=0)left++;
+  const minB=Math.max(5,Math.round(left*big/30)),maxB=Math.max(minB+8,Math.round(left*big/9));
+  const boxes=[];let ex=computeExposed(g,w,h);
+  while(left>0){
+    const cnt=new Array(P).fill(0);
+    for(let i=0;i<g.length;i++)if(g[i]>=0&&ex[i])cnt[g[i]]++;
+    const wts=cnt.map(c=>c*c),sum=wts.reduce((a,b)=>a+b,0);if(!sum)break;
+    let r=rng()*sum,c=0;while(r>=wts[c]){r-=wts[c];c++}
+    const k=minB+Math.floor(rng()*(maxB-minB+1));let eaten=0;
+    while(eaten<k){const t=nearest(g,ex,w,c,null,H.x,H.y);if(t<0)break;g[t]=-1;ex=computeExposed(g,w,h);eaten++;left--}
+    const prev=boxes[boxes.length-1];
+    if(prev&&prev.color===c&&prev.n+eaten<=maxB*1.3)prev.n+=eaten;else boxes.push({color:c,n:eaten});
+  }
+  return boxes;
+}
+// 賢く遊べば解けるかを確認：今食べられる箱だけを出し、どうしようもない時だけ他の箱を出す
+function solvable(L,cols0,slotsN){
+  const{w,h}=L,g=Int16Array.from(L.grid),H=holeOf(L);let ex=computeExposed(g,w,h);
+  const cols=cols0.map(c=>c.map(b=>({color:b.color,n:b.left})));
+  let left=0;for(const v of g)if(v>=0)left++;let slots=[];
+  const canEat=c=>nearest(g,ex,w,c,null,H.x,H.y)>=0;
+  while(left>0){
+    while(slots.length<slotsN){
+      const f=cols.filter(c=>c.length);if(!f.length)break;
+      const good=f.find(c=>canEat(c[0].color));
+      if(good)slots.push(good.shift());
+      else if(!slots.some(s=>canEat(s.color)))slots.push(f[0].shift());
+      else break;
+    }
+    let prog=false;
+    for(const s of slots){const t=nearest(g,ex,w,s.color,null,H.x,H.y);
+      if(t>=0){g[t]=-1;ex=computeExposed(g,w,h);s.n--;left--;prog=true}}
+    slots=slots.filter(s=>s.n>0);
+    if(!prog)return false;
+  }
+  return true;
+}
+function buildLayout(L,seed,cfg){
+  let fallback=null;
+  for(let attempt=0;attempt<30;attempt++){
+    const rng=rngOf(seed+attempt*7919),base=planBoxes(L,rng,cfg.big||1);
+    // 本来の順番に「ゆらぎ」を入れて並べ替える（ゆらぎが大きいほど難しい）
+    const jit=cfg.jitter*Math.max(0,1-attempt/20);
+    const order=base.map((b,i)=>({b,k:i+rng()*jit})).sort((a,c)=>a.k-c.k).map(x=>x.b);
+    const cols=deal(order,rng,cfg);
+    if(solvable(L,cols,5))return cols;
+    if(!fallback)fallback=deal(base,rng,cfg);
+  }
+  return fallback;
+}
+function deal(order,rng,cfg){
+  const nc=order.length>27?4:3,cols=Array.from({length:nc},()=>[]);
+  order.forEach((b,i)=>{const col=cols[i%nc];
+    col.push({color:b.color,left:b.n,pending:0,spawn:0,mystery:col.length>0&&rng()<cfg.mystery})});
+  return cols;
+}
+
+/* ========== 画像→ドット絵 ========== */
+function imageToLevel(img,side=20,k=6){
+  const s=side/Math.max(img.naturalWidth,img.naturalHeight);
+  const w=Math.max(6,Math.round(img.naturalWidth*s)),h=Math.max(6,Math.round(img.naturalHeight*s));
+  // 段階的に縮小してにじみを抑える
+  let src=img,sw=img.naturalWidth,sh=img.naturalHeight;
+  while(sw/2>w*2){const c=document.createElement("canvas");c.width=sw=Math.round(sw/2);c.height=sh=Math.round(sh/2);
+    c.getContext("2d").drawImage(src,0,0,sw,sh);src=c}
+  const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");
+  x.imageSmoothingQuality="high";x.drawImage(src,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data,pts=[],idx=[];
+  for(let i=0;i<w*h;i++){if(d[i*4+3]<128)continue;pts.push([d[i*4],d[i*4+1],d[i*4+2]]);idx.push(i)}
+  if(pts.length<8)return null;
+  const dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
+  const cen=[pts[Math.floor(pts.length/2)].slice()];
+  while(cen.length<k){let bi=0,bd=-1;pts.forEach((p,i)=>{const m=Math.min(...cen.map(c=>dist(p,c)));if(m>bd){bd=m;bi=i}});
+    if(bd<=0)break;cen.push(pts[bi].slice())}
+  const as=new Int16Array(pts.length);
+  for(let it=0;it<14;it++){
+    pts.forEach((p,i)=>{let b=0,bd=Infinity;cen.forEach((c,j)=>{const v=dist(p,c);if(v<bd){bd=v;b=j}});as[i]=b});
+    const sum=cen.map(()=>[0,0,0,0]);pts.forEach((p,i)=>{const s=sum[as[i]];s[0]+=p[0];s[1]+=p[1];s[2]+=p[2];s[3]++});
+    sum.forEach((s,j)=>{if(s[3])cen[j]=[s[0]/s[3],s[1]/s[3],s[2]/s[3]]});
+  }
+  // 見分けにくい近い色、ごく少ない色は近い色に吸収させる
+  for(let changed=true;changed;){changed=false;
+    const cnt=cen.map(()=>0);as.forEach(a=>cnt[a]++);
+    const alive=cen.map((_,j)=>j).filter(j=>cnt[j]>0);
+    let pair=null,pd=48*48;
+    for(const a of alive)for(const b of alive)if(a<b){const v=dist(cen[a],cen[b]);if(v<pd){pd=v;pair=[a,b]}}
+    const tiny=alive.find(j=>cnt[j]<3&&alive.length>2);
+    let from=-1,to=-1;
+    if(pair){[to,from]=cnt[pair[0]]>=cnt[pair[1]]?pair:[pair[1],pair[0]]}
+    else if(tiny!==undefined){from=tiny;let bd=Infinity;for(const j of alive)if(j!==tiny){const v=dist(cen[j],cen[tiny]);if(v<bd){bd=v;to=j}}}
+    if(from>=0){for(let i=0;i<as.length;i++)if(as[i]===from)as[i]=to;changed=true}
+  }
+  const used=[...new Set(as)],remap=new Map(used.map((u,i)=>[u,i]));
+  const grid=new Int16Array(w*h).fill(-1);idx.forEach((gi,i)=>grid[gi]=remap.get(as[i]));
+  const hex=v=>Math.round(v).toString(16).padStart(2,"0");
+  const pal=used.map(u=>"#"+cen[u].map(hex).join(""));
+  const line=used.some(u=>dist(cen[u],[59,42,42])<70*70)?"#f2ead8":"#3b2a2a";
+  return outlined({w,h,grid,palette:pal},line);
+}
+
+/* ========== 色ユーティリティ ========== */
+const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
+const shade=(h,f)=>"rgb("+rgb(h).map(v=>Math.round(f<0?v*(1+f):v+(255-v)*f)).join(",")+")";
+const lum=h=>{const[r,g,b]=rgb(h);return(.299*r+.587*g+.114*b)/255};
+
+/* ========== ゲーム状態 ========== */
+const cv=document.getElementById("cv"),ctx=cv.getContext("2d");
+const nestEl=document.getElementById("nest"),trayEl=document.getElementById("tray");
+let G=null,view={cell:20,ox:0,oy:0,dpr:1},sprites=[];
+let current={kind:"level",index:1},seed=Date.now()%100000;
+let autoMode=0; // 0=手動 1=オートA 2=オートB
+const AUTO_LABEL=["手動","オートA","オートB"],AUTO_CODE=["MANUAL","AUTO A","AUTO B"];
+const SPECIMEN=["ヒシガタモザイク","アリンコキノコ","ユウヤケノオカ"];
+
+/* ========== 鬼ごっこの設定 ========== */
+let POOL=30;          // 巣のアリの総数
+let RANGE=3;          // 鬼の影響範囲（マス）
+const QCAP=2,QTIME=6; // 隔離室の定員と、元に戻るまでの秒数
+const OMEN=1.6;       // 鬼が現れる前の予兆（秒）
+const AUTO_Q=3;       // オートBが隔離するまでの秒数
+const STALL_WARN=20,STALL_GRACE=5;   // 鬼がいる間、20秒無進捗で警告→5秒後に打ち切り
+const IMMUNE=4;       // 元に戻った直後、鬼にならない秒数（免疫）
+// 色ごとに隠された性格（終了時に公開）
+const TRAITS=[
+  {name:"おっとり",pulse:5,speed:4.5},
+  {name:"ふつう",pulse:3.8,speed:5.5},
+  {name:"せっかち",pulse:2.8,speed:6.8},
+];
+let SPEED=6,GAP=.07;
+
+function start(){
+  const cfg=current.kind==="level"?LEVELS[current.index]:{jitter:16,big:.8,mystery:.2,oni:{first:.2,mean:9}};
+  const L=current.kind==="level"?cfg.make():customLevel;
+  const cols=buildLayout(L,seed,cfg);
+  let left=0;for(const v of L.grid)if(v>=0)left++;
+  G={L,g:Int16Array.from(L.grid),res:new Uint8Array(L.w*L.h),ex:null,out:null,pass:null,holeBfs:null,exDirty:true,
+     cols,slots:new Array(5).fill(null),extra:false,ants:[],left,total:left,state:"play",endT:0,
+     hole:holeOf(L),cfg,runNo:seed,mode:autoMode,
+     idle:POOL,oni:[],quar:[],fx:[],clock:0,firstDone:false,omen:-1,nextOniAt:0,autoT:0,
+     stats:{infect:0,cure:0,quar:0,born:0,peak:0,stalled:false},stallT:0,stallSnap:null,
+     traits:L.palette.map(()=>TRAITS[Math.floor(Math.random()*TRAITS.length)])};
+  hudCache="";hideOverlay();layout();refresh();renderLevels();renderAuto();renderNest();renderTray();
+}
+
+/* ========== 歩ける場所と経路（キューブは踏まない） ========== */
+// 盤面の周りに余白を足した「歩行グリッド」。外側と、外とつながった空きマスだけ歩ける
+const MX=2,MT=2,MB=3;
+const navW=()=>G.L.w+2*MX,navH=()=>G.L.h+MT+MB;
+function refresh(){
+  if(!G.exDirty)return;
+  const{g,L}=G;G.out=computeOut(g,L.w,L.h);G.ex=exposedFrom(g,L.w,L.h,G.out);
+  const W=navW(),H=navH(),pass=new Uint8Array(W*H);
+  for(let ey=0;ey<H;ey++)for(let ex=0;ex<W;ex++){const bx=ex-MX,by=ey-MT;
+    if(bx<0||by<0||bx>=L.w||by>=L.h)pass[ey*W+ex]=1;
+    else{const i=by*L.w+bx;pass[ey*W+ex]=g[i]<0&&G.out[i]?1:0}}
+  G.pass=pass;G.exDirty=false;G.holeBfs=bfs(cellOf(G.hole.x,G.hole.y));
+}
+function cellOf(x,y){
+  const W=navW(),H=navH();
+  let ex=Math.min(W-1,Math.max(0,Math.floor(x)+MX)),ey=Math.min(H-1,Math.max(0,Math.floor(y)+MT));
+  if(G.pass[ey*W+ex])return ey*W+ex;
+  let best=ey*W+ex,bd=Infinity; // 念のため近くの歩けるマスへ寄せる
+  for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++){const nx=ex+dx,ny=ey+dy;
+    if(nx<0||ny<0||nx>=W||ny>=H||!G.pass[ny*W+nx])continue;const d=dx*dx+dy*dy;if(d<bd){bd=d;best=ny*W+nx}}
+  return best;
+}
+function bfs(start){
+  const W=navW(),H=navH(),N=W*H,pass=G.pass,dist=new Int32Array(N).fill(-1),prev=new Int32Array(N).fill(-1),q=new Int32Array(N);
+  let hd=0,tl=0;dist[start]=0;q[tl++]=start;
+  while(hd<tl){const c=q[hd++],cx=c%W,cy=(c/W)|0;
+    for(let dy=-1;dy<=1;dy++)for(let dx=-1;dx<=1;dx++){if(!dx&&!dy)continue;
+      const nx=cx+dx,ny=cy+dy;if(nx<0||ny<0||nx>=W||ny>=H)continue;const n=ny*W+nx;
+      if(!pass[n]||dist[n]>=0)continue;
+      if(dx&&dy&&(!pass[cy*W+nx]||!pass[ny*W+cx]))continue; // 角をすり抜けない
+      dist[n]=dist[c]+1;prev[n]=c;q[tl++]=n}}
+  return{dist,prev};
+}
+// そのキューブに隣接する歩けるマスのうち、いちばん近いもの
+function viaOf(B,target){
+  const W=navW(),w=G.L.w,e=(((target/w)|0)+MT)*W+target%w+MX;let best=-1,bd=Infinity;
+  for(const n of[e-1,e+1,e-W,e+W]){const d=B.dist[n];if(d>=0&&d<bd){bd=d;best=n}}
+  return best<0?null:{via:best,d:bd};
+}
+// 到達できる同色キューブのうち、歩く距離がいちばん短いもの
+function pickTarget(B,color){
+  const{g,ex,res}=G;let best=null;
+  for(let i=0;i<g.length;i++){if(g[i]!==color||!ex[i]||res[i])continue;
+    const v=viaOf(B,i);if(v&&(!best||v.d<best.d))best={target:i,via:v.via,d:v.d}}
+  return best;
+}
+const cubeCenter=i=>[i%G.L.w+.5,((i/G.L.w)|0)+.5];
+const cellCenter=c=>{const W=navW();return[c%W-MX+.5,((c/W)|0)-MT+.5]};
+function chain(B,to){const cells=[];for(let c=to;c>=0;c=B.prev[c])cells.push(c);return cells.reverse()} // start→to
+function clearLine(a,b){
+  const W=navW(),H=navH(),n=Math.ceil(Math.hypot(b[0]-a[0],b[1]-a[1])/.1);
+  for(let k=1;k<n;k++){const x=a[0]+(b[0]-a[0])*k/n,y=a[1]+(b[1]-a[1])*k/n,ex=Math.floor(x)+MX,ey=Math.floor(y)+MT;
+    if(ex<0||ey<0||ex>=W||ey>=H)continue;if(!G.pass[ey*W+ex])return false}
+  return true;
+}
+function smooth(pts){ // 見通せる地点は直線でつなぐ
+  if(pts.length<3)return pts;const out=[pts[0]];let i=0;
+  while(i<pts.length-1){let j=pts.length-1;while(j>i+1&&!clearLine(pts[i],pts[j]))j--;out.push(pts[j]);i=j}
+  return out;
+}
+function pathVia(B,via,end){const pts=chain(B,via).map(cellCenter);if(end)pts.push(end);return smooth(pts)}
+function homePath(x,y){ // いまの場所から巣穴まで
+  const B=G.holeBfs,c=cellOf(x,y);
+  if(B.dist[c]<0)return[[G.hole.x,G.hole.y]];
+  const cells=[];for(let k=c;k>=0;k=B.prev[k])cells.push(k);
+  const pts=smooth(cells.map(cellCenter));pts.push([G.hole.x+(Math.random()-.5)*.6,G.hole.y]);return pts;
+}
+function follow(a,speed,dt){ // 経路をたどる。着いたら true
+  let mv=speed*dt;
+  while(mv>0&&a.path.length){const[tx,ty]=a.path[0],dx=tx-a.x,dy=ty-a.y,d=Math.hypot(dx,dy);
+    if(d<=mv){a.x=tx;a.y=ty;mv-=d;a.path.shift()}
+    else{a.x+=dx/d*mv;a.y+=dy/d*mv;a.ang=Math.atan2(dy,dx);mv=0}}
+  return!a.path.length;
+}
+
+/* ========== 描画 ========== */
+function layout(){
+  const L=G.L,W=cv.parentElement.clientWidth,dpr=Math.min(3,window.devicePixelRatio||1);
+  const availH=Math.min(window.innerHeight*.46,440);
+  const cell=Math.max(6,Math.floor(Math.min((W-28)/L.w,(availH-70)/L.h)));
+  const Hpx=Math.round(L.h*cell+26+cell*2.6+18);
+  cv.width=Math.round(W*dpr);cv.height=Math.round(Hpx*dpr);cv.style.height=Hpx+"px";
+  view={cell,dpr,ox:Math.round((W-L.w*cell)/2),oy:26};
+  sprites=L.palette.map(col=>{
+    const s=document.createElement("canvas"),p=Math.ceil(cell*dpr);s.width=s.height=p;const x=s.getContext("2d");
+    const r=Math.max(1,p*.18),m=Math.max(.5,p*.04);
+    x.fillStyle=shade(col,-.28);rr(x,m,m,p-2*m,p-2*m,r);x.fill();
+    x.fillStyle=col;rr(x,m,m,p-2*m,p-2*m-p*.12,r);x.fill();
+    x.fillStyle=shade(col,.35);rr(x,m+p*.14,m+p*.12,p*.44,p*.16,r*.6);x.fill();
+    return s;
+  });
+}
+function rr(x,a,b,w,h,r){x.beginPath();x.moveTo(a+r,b);x.arcTo(a+w,b,a+w,b+h,r);x.arcTo(a+w,b+h,a,b+h,r);x.arcTo(a,b+h,a,b,r);x.arcTo(a,b,a+w,b,r);x.closePath()}
+const px=u=>view.ox+u*view.cell,py=v=>view.oy+v*view.cell;
+
+function draw(){
+  const{L,g}=G,{cell,dpr}=view;
+  ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,cv.width,cv.height);
+  const hx=px(G.hole.x),hy=py(G.hole.y),hr=Math.max(14,cell*1.15);
+  ctx.fillStyle="#a8916c";ctx.beginPath();ctx.ellipse(hx,hy+2,hr*1.25,hr*.62,0,0,7);ctx.fill();
+  ctx.fillStyle="#2a1c14";ctx.beginPath();ctx.ellipse(hx,hy,hr,hr*.5,0,0,7);ctx.fill();
+  for(let i=0;i<g.length;i++){const c=g[i];if(c<0)continue;ctx.drawImage(sprites[c],px(i%L.w),py((i/L.w)|0),cell,cell)}
+  for(const a of G.ants)if(a.immune>0){ctx.strokeStyle=`rgba(110,180,60,${Math.min(1,a.immune)*.8})`;ctx.lineWidth=2;
+    ctx.beginPath();ctx.arc(px(a.x),py(a.y),Math.max(8,cell*.7),0,7);ctx.stroke()}
+  for(const a of G.ants)if(a.phase==="go")drawAnt(a);
+  for(const a of G.ants)if(a.phase==="back")drawAnt(a);
+  // 鬼：判定の直前は範囲を点線で予告し、範囲内のアリに「！」
+  const alarmed=new Set();
+  for(const o of G.oni){
+    if(o.t<1&&G.state==="play"){ctx.globalAlpha=Math.min(1,2/G.oni.length);ctx.strokeStyle=`rgba(190,30,40,${.55*(1-o.t)})`;ctx.lineWidth=2;ctx.setLineDash([5,5]);
+      ctx.beginPath();ctx.arc(px(o.x),py(o.y),RANGE*cell,0,7);ctx.stroke();ctx.setLineDash([]);ctx.globalAlpha=1;
+      for(const a of G.ants)if(a.immune<=0&&(a.x-o.x)**2+(a.y-o.y)**2<=RANGE*RANGE)alarmed.add(a)}
+    drawAnt(o,true)}
+  ctx.textAlign="center";ctx.font="900 15px 'Hiragino Maru Gothic ProN',sans-serif";ctx.lineWidth=3.5;ctx.lineJoin="round";
+  for(const a of alarmed){const x=px(a.x),y=py(a.y)-15;ctx.strokeStyle="#fff7e6";ctx.strokeText("！",x,y);ctx.fillStyle="#d8323a";ctx.fillText("！",x,y)}
+  for(const f of G.fx){const k=f.t/f.dur;ctx.globalAlpha=Math.max(0,1-k);
+    if(f.kind==="ring"){ctx.strokeStyle=f.color;ctx.lineWidth=3;
+      ctx.beginPath();ctx.arc(px(f.x),py(f.y),Math.max(1,(f.r0+(f.r1-f.r0)*k)*cell),0,7);ctx.stroke()}
+    else{ctx.fillStyle=f.color;ctx.font=f.big?"22px sans-serif":"700 13px 'Hiragino Maru Gothic ProN',sans-serif";
+      ctx.fillText(f.text,px(f.x),py(f.y)-14-k*14)}}
+  ctx.globalAlpha=1;
+  if(G.omen>=0){const W=cv.width/dpr,H=cv.height/dpr,a=.18+.14*Math.sin(G.clock*14);
+    const gr=ctx.createRadialGradient(W/2,H/2,Math.min(W,H)*.3,W/2,H/2,Math.max(W,H)*.75);
+    gr.addColorStop(0,"rgba(160,20,30,0)");gr.addColorStop(1,`rgba(160,20,30,${a})`);ctx.fillStyle=gr;ctx.fillRect(0,0,W,H)}
+}
+function drawAnt(a,oni){
+  const s=Math.min(15,Math.max(7,view.cell*.8))*(oni?1.2:1),x=px(a.x),y=py(a.y);
+  ctx.save();ctx.translate(x,y);ctx.rotate(a.ang);
+  const sw=Math.sin(a.walk)*s*.22;
+  if(oni){const g=ctx.createRadialGradient(0,0,0,0,0,s*1.1);g.addColorStop(0,"rgba(230,40,50,.55)");g.addColorStop(1,"rgba(230,40,50,0)");
+    ctx.fillStyle=g;ctx.beginPath();ctx.arc(0,0,s*1.1,0,7);ctx.fill()}
+  ctx.strokeStyle=a.dark;ctx.lineWidth=Math.max(1,s*.1);ctx.lineCap="round";ctx.beginPath();
+  [[-.14,1],[0,-1],[.14,1]].forEach(([o,ph])=>{const f=sw*ph;
+    ctx.moveTo(o*s,0);ctx.lineTo(o*s+f,-s*.55);ctx.moveTo(o*s,0);ctx.lineTo(o*s-f,s*.55)});
+  ctx.moveTo(s*.5,-s*.08);ctx.lineTo(s*.82,-s*.32);ctx.moveTo(s*.5,s*.08);ctx.lineTo(s*.82,s*.32);ctx.stroke();
+  ctx.fillStyle=a.body;
+  ctx.beginPath();ctx.ellipse(-s*.5,0,s*.34,s*.26,0,0,7);ctx.fill();
+  ctx.beginPath();ctx.ellipse(0,0,s*.2,s*.14,0,0,7);ctx.fill();
+  ctx.beginPath();ctx.arc(s*.38,0,s*.18,0,7);ctx.fill();
+  if(oni){
+    ctx.strokeStyle="#d8323a";ctx.lineWidth=Math.max(1.2,s*.09);
+    ctx.beginPath();ctx.ellipse(-s*.5,0,s*.34,s*.26,0,0,7);ctx.stroke();
+    ctx.beginPath();ctx.arc(s*.38,0,s*.18,0,7);ctx.stroke();
+    ctx.fillStyle="#f2d25a";ctx.beginPath();
+    ctx.moveTo(s*.34,-s*.14);ctx.lineTo(s*.3,-s*.42);ctx.lineTo(s*.46,-s*.16);
+    ctx.moveTo(s*.34,s*.14);ctx.lineTo(s*.3,s*.42);ctx.lineTo(s*.46,s*.16);ctx.fill();
+    ctx.fillStyle="#ff4b4b";ctx.beginPath();ctx.arc(s*.46,-s*.07,s*.05,0,7);ctx.arc(s*.46,s*.07,s*.05,0,7);ctx.fill();
+  }
+  if(a.carry>=0){const c=Math.max(4,view.cell*.55);ctx.drawImage(sprites[a.carry],s*.62,-c/2,c,c)}
+  ctx.restore();
+}
+
+/* ========== UI（待機所・箱・オート） ========== */
+const ANT_SVG='<svg viewBox="0 0 20 12" width="15" height="9" aria-hidden="true"><g fill="currentColor"><ellipse cx="5" cy="6" rx="4" ry="3"/><ellipse cx="10.5" cy="6" rx="2.2" ry="1.7"/><circle cx="15" cy="6" r="2.2"/></g><path d="M9 5 7 1M11 5V1M12 5l2-4M9 7l-2 4M11 7v4M12 7l2 4M16.5 5 19 2M16.5 7 19 10" stroke="currentColor" fill="none"/></svg>';
+function boxStyle(b){const c=G.L.palette[b.color];return`background:${c};color:${lum(c)>.62?"#2a1c14":"#fff8ea"}`}
+function renderNest(pop=-1){
+  nestEl.innerHTML="";
+  G.slots.forEach((b,i)=>{const p=document.createElement("div");p.className="pit"+(i===5?" extra":"");
+    if(b){const d=document.createElement("div");d.className="box"+(i===pop?" pop":"");d.style.cssText=boxStyle(b);
+      d.innerHTML=ANT_SVG+`<span>${b.left}</span>`;b.el=d.querySelector("span");p.appendChild(d)}
+    nestEl.appendChild(p)});
+}
+function renderTray(){
+  const nc=G.cols.length;trayEl.style.gridTemplateColumns=`repeat(${nc},1fr)`;trayEl.innerHTML="";
+  G.cols.forEach((col,ci)=>{const c=document.createElement("div");c.className="col";
+    col.slice(0,4).forEach((b,k)=>{const front=k===0,hidden=b.mystery&&!front;
+      const el=document.createElement(front?"button":"div");
+      el.className="box"+(front?"":" back")+(hidden?" mystery":"");
+      if(!hidden)el.style.cssText=boxStyle(b);
+      el.innerHTML=hidden?"<span>?</span>":ANT_SVG+`<span>${b.left}</span>`;
+      if(front){el.dataset.col=ci;el.setAttribute("aria-label",`アリ${b.left}匹の箱を出す`)}
+      c.appendChild(el)});
+    if(col.length>4){const m=document.createElement("div");m.className="more";m.textContent=`あと${col.length-4}箱`;c.appendChild(m)}
+    trayEl.appendChild(c)});
+}
+function renderLevels(){
+  const el=document.getElementById("levels");el.innerHTML="";
+  LEVELS.forEach((lv,i)=>{const b=document.createElement("button");b.className="chip";b.textContent="レベル"+lv.name;
+    b.setAttribute("aria-pressed",current.kind==="level"&&current.index===i);
+    b.onclick=()=>{current={kind:"level",index:i};seed=Date.now()%100000;start()};el.appendChild(b)});
+  if(customLevel){const b=document.createElement("button");b.className="chip";b.textContent="自分の画像";
+    b.setAttribute("aria-pressed",current.kind==="custom");
+    b.onclick=()=>{current={kind:"custom"};seed=Date.now()%100000;start()};el.appendChild(b)}
+  const up=document.createElement("button");up.className="chip ghost";up.textContent="画像から作る";
+  up.onclick=()=>document.getElementById("file").click();el.appendChild(up);
+  document.getElementById("left").textContent="残り "+G.left;
+}
+function renderAuto(){
+  const el=document.getElementById("auto");el.innerHTML="";
+  AUTO_LABEL.forEach((t,i)=>{const b=document.createElement("button");b.className="seg";b.textContent=t;
+    b.setAttribute("aria-pressed",autoMode===i);
+    b.onclick=()=>{autoMode=i;if(G){G.mode=Math.max(G.mode,i);G.autoT=0}renderAuto()};el.appendChild(b)});
+  const hint=document.getElementById("autoHint");
+  hint.textContent=autoMode===0?"":autoMode===1?"空いた待機所に、いま食べられる色の箱を自動で出します":"箱を自動で出し、鬼は3秒後に古い順から隔離します";
+}
+function placeBox(ci,auto){
+  const col=G.cols[ci],slot=G.slots.indexOf(null);if(slot<0||!col.length)return false;
+  const b=col.shift();b.mystery=false;b.spawn=0;G.slots[slot]=b;renderNest(auto?slot:-1);renderTray();return true;
+}
+trayEl.addEventListener("click",e=>{
+  const el=e.target.closest("button[data-col]");if(!el||G.state!=="play")return;
+  if(!G.slots.includes(null)){el.classList.remove("shake");void el.offsetWidth;el.classList.add("shake");toast("待機所がいっぱいです");return}
+  placeBox(+el.dataset.col,false);
+});
+
+/* ========== 進行 ========== */
+function newAnt(o){const col=G.L.palette[o.color];
+  return{walk:Math.random()*6,ang:-Math.PI/2,carry:-1,box:null,target:-1,path:[],immune:0,...o,body:shade(col,-.12),dark:shade(col,-.45)}}
+function sendToJob(a,job,B){ // 仕事（予約済みのキューブ）へ向かわせる。行けなければ false
+  const v=viaOf(B,job.target);if(!v||G.g[job.target]<0)return false;
+  a.phase="go";a.box=job.box;a.target=job.target;a.carry=-1;a.path=pathVia(B,v.via,cubeCenter(job.target));return true;
+}
+function dropJob(job){if(job&&G.res[job.target]){G.res[job.target]=0;job.box.pending--}}
+function step(dt){
+  refresh();
+  const{L,g,res,hole}=G;
+  // 待機所の箱からアリを出す（巣に元気なアリがいて、行ける同色キューブがあるときだけ）
+  for(const b of G.slots){if(!b)continue;b.spawn-=dt;
+    while(b.spawn<=0&&b.left-b.pending>0&&G.idle>0){
+      const T=pickTarget(G.holeBfs,b.color);if(!T){b.spawn=0;break}
+      res[T.target]=1;b.pending++;b.spawn+=GAP;G.idle--;
+      const a=newAnt({x:hole.x+(Math.random()-.5)*.8,y:hole.y,color:b.color,phase:"go",box:b,target:T.target});
+      a.path=pathVia(G.holeBfs,T.via,cubeCenter(T.target));G.ants.push(a);
+    }}
+  // アリを動かす
+  let uiNum=false,slotsChanged=false;
+  for(const a of G.ants.slice()){
+    a.walk+=dt*28;if(a.immune>0)a.immune-=dt;
+    if(!follow(a,SPEED,dt))continue;
+    if(a.phase==="go"){const b=a.box;g[a.target]=-1;res[a.target]=0;G.exDirty=true;G.left--;
+      b.left--;b.pending--;a.carry=b.color;a.phase="back";a.box=null;uiNum=true;
+      refresh();a.path=homePath(a.x,a.y);
+      if(b.left===0){const i=G.slots.indexOf(b);if(i>=0){G.slots[i]=null;slotsChanged=true}}}
+    else{G.ants.splice(G.ants.indexOf(a),1);G.idle++}
+  }
+  stepOni(dt);
+  autoStep(dt);
+  stepStall(dt);
+  if(slotsChanged)renderNest();
+  else if(uiNum)for(const b of G.slots)if(b&&b.el)b.el.textContent=b.left;
+  if(uiNum)document.getElementById("left").textContent="残り "+G.left;
+  renderHud();
+  // 勝敗
+  if(G.state!=="play")return;
+  if(G.left===0){G.endT+=dt;if(G.endT>.9&&!G.ants.length)win();return}
+  if(G.idle+G.ants.length===0&&G.oni.length){lose();return}
+  if(G.ants.length||G.idle===0)return;
+  if(G.oni.some(o=>o.job)||G.quar.some(q=>q.job))return; // 仕事を抱えた鬼が戻るのを待つ
+  refresh();
+  const canMove=G.slots.some(b=>b&&b.left-b.pending>0&&pickTarget(G.holeBfs,b.color));
+  const canTap=G.slots.includes(null)&&G.cols.some(c=>c.length);
+  if(!canMove&&!canTap)stuck();
+}
+
+/* ========== 行き詰まり判定 ========== */
+function stepStall(dt){
+  if(G.state!=="play")return;
+  if(!G.oni.length){G.stallT=0;G.stallSnap=null;return}
+  const snap=G.left+","+G.stats.infect+","+G.stats.cure;
+  if(snap!==G.stallSnap){G.stallSnap=snap;G.stallT=0;return}
+  G.stallT+=dt;
+  if(G.stallT>=STALL_WARN+STALL_GRACE){G.state="lose";G.stats.stalled=true;showReport(false)}
+}
+
+/* ========== 鬼ごっこ ========== */
+function makeOni(x,y,color,job){
+  const col=G.L.palette[color];
+  // キューブに取りつく直前に鬼化した場合は、手前の歩けるマスに立たせる
+  refresh();const W=navW(),ex=Math.floor(x)+MX,ey=Math.floor(y)+MT;
+  if(ex<0||ey<0||ex>=W||ey>=navH()||!G.pass[ey*W+ex]){[x,y]=cellCenter(cellOf(x,y))}
+  G.oni.push({x,y,color,job,t:G.traits[color].pulse,path:[],repath:0,age:0,walk:0,ang:0,carry:-1,
+    body:shade(col,-.3),dark:"#3a0c10"});
+  G.stats.peak=Math.max(G.stats.peak,G.oni.length);
+}
+function addFx(f){G.fx.push({t:0,...f})}
+function infect(a){ // 元気なアリが鬼になる。向かっていたキューブの予約はそのまま持っていく
+  const job=a.phase==="go"?{target:a.target,box:a.box}:null;
+  G.ants.splice(G.ants.indexOf(a),1);
+  makeOni(a.x,a.y,a.color,job);G.stats.infect++;
+  addFx({kind:"ring",x:a.x,y:a.y,r0:.2,r1:1.4,dur:.45,color:"rgb(215,40,50)"});
+  addFx({kind:"text",x:a.x,y:a.y,text:"💀",big:true,dur:1,color:"#000"});
+}
+function revive(o,x,y,fromHole){ // 元に戻ったアリ：仕事があれば再開、なければ巣へ
+  const a=newAnt({x,y,color:o.color,phase:"back",immune:IMMUNE});
+  if(o.job){refresh();const B=fromHole?G.holeBfs:bfs(cellOf(x,y));
+    if(sendToJob(a,o.job,B)){G.ants.push(a);return}
+    dropJob(o.job)}
+  if(fromHole){G.idle++;return}
+  refresh();a.path=homePath(x,y);G.ants.push(a);
+}
+function cure(o,msg){
+  G.oni.splice(G.oni.indexOf(o),1);G.stats.cure++;
+  revive(o,o.x,o.y,false);
+  addFx({kind:"ring",x:o.x,y:o.y,r0:1.4,r1:.2,dur:.5,color:"rgb(120,190,70)"});
+  addFx({kind:"text",x:o.x,y:o.y,text:msg,dur:1,color:"rgb(70,130,40)"});
+}
+function quarantine(o,auto){
+  if(G.quar.length>=QCAP)return false;
+  G.oni.splice(G.oni.indexOf(o),1);G.quar.push({t:QTIME,color:o.color,job:o.job});G.stats.quar++;
+  addFx({kind:"ring",x:o.x,y:o.y,r0:.2,r1:1.6,dur:.45,color:"rgb(90,150,60)"});
+  addFx({kind:"text",x:o.x,y:o.y,text:auto?"隔離（オート）":"隔離",dur:.9,color:"rgb(70,130,40)"});
+  return true;
+}
+function nearestAnt(o,maxD,sameOnly){
+  let best=null,bd=maxD*maxD;
+  for(const a of G.ants){if(a.immune>0||(sameOnly&&a.color!==o.color))continue;
+    const d=(a.x-o.x)**2+(a.y-o.y)**2;if(d<bd){bd=d;best=a}}
+  return best;
+}
+function stepOni(dt){
+  for(const f of G.fx)f.t+=dt;G.fx=G.fx.filter(f=>f.t<f.dur);
+  if(G.state!=="play")return;
+  G.clock+=dt;const L=G.L,cfg=G.cfg.oni;
+  // 出現：1匹目は消化率で必ず、以降はランダム。どちらも予兆のあとに出る
+  if(G.omen<0&&G.left>0){
+    const due=G.firstDone?G.clock>=G.nextOniAt:(1-G.left/G.total)>=cfg.first;
+    if(due){G.omen=OMEN;toast("不穏な気配……")}
+  }else if(G.omen>=0){
+    G.omen-=dt;
+    if(G.omen<0){
+      const ok=G.ants.filter(a=>a.immune<=0),pool=ok.filter(a=>a.phase==="go"),cand=pool.length?pool:ok;
+      if(cand.length){infect(cand[Math.floor(Math.random()*cand.length)]);G.stats.infect--;G.stats.born++;
+        G.firstDone=true;G.nextOniAt=G.clock+Math.max(6,-Math.log(1-Math.random())*cfg.mean)}
+      else G.omen=0;
+    }
+  }
+  for(const o of G.oni.slice()){
+    if(!G.oni.includes(o))continue;
+    const tr=G.traits[o.color];o.age+=dt;o.walk+=dt*22;
+    // 同じ色のアリを追いかけ、いなければうろつく（どちらもキューブは踏まない）
+    o.repath-=dt;
+    if(o.repath<=0||!o.path.length){o.repath=.4;
+      const prey=nearestAnt(o,6,true),B=bfs(cellOf(o.x,o.y));
+      if(prey){const c=cellOf(prey.x,prey.y);if(B.dist[c]>=0)o.path=smooth(chain(B,c).map(cellCenter))}
+      else if(!o.path.length){const W=navW(),H=navH();
+        for(let k=0;k<25;k++){const c=Math.floor(Math.random()*W*H),cy=(c/W)|0;
+          if(B.dist[c]>0&&cy<L.h+MT+1){o.path=smooth(chain(B,c).map(cellCenter));break}}}
+      if(o.path.length>1&&clearLine([o.x,o.y],o.path[1]))o.path.shift(); // 近道は見通せるときだけ
+    }
+    follow(o,tr.speed,dt);
+    // 一定時間ごとに、範囲内でいちばん近いアリ1匹と判定
+    o.t-=dt;
+    if(o.t<=0){o.t=tr.pulse;
+      addFx({kind:"ring",x:o.x,y:o.y,r0:.3,r1:RANGE,dur:.5,color:"rgb(200,40,50)"});
+      const a=nearestAnt(o,RANGE,false);
+      if(!a)addFx({kind:"text",x:o.x,y:o.y,text:"……",dur:.8,color:"rgb(120,90,70)"});
+      else if(a.color===o.color)infect(a);else cure(o,"もどった！")
+    }
+  }
+  // 隔離室：時間が来たら巣穴から戻り、仕事があれば再開
+  for(const q of G.quar.slice()){q.t-=dt;
+    if(q.t<=0){G.quar.splice(G.quar.indexOf(q),1);revive(q,G.hole.x,G.hole.y,true)}}
+}
+function autoStep(dt){
+  if(!autoMode||G.state!=="play")return;
+  G.autoT-=dt;if(G.autoT>0)return;G.autoT=.3;
+  // ① 待機所が空いたら、いま食べられる色の箱を出す
+  if(G.slots.includes(null)){refresh();
+    const fronts=G.cols.map((c,i)=>[c[0],i]).filter(x=>x[0]);
+    let pick=fronts.find(([b])=>pickTarget(G.holeBfs,b.color));
+    if(!pick&&fronts.length&&!G.ants.length&&!G.oni.some(o=>o.job)&&!G.quar.some(q=>q.job)&&
+       !G.slots.some(b=>b&&b.left-b.pending>0&&pickTarget(G.holeBfs,b.color)))pick=fronts[0]; // 手詰まり回避
+    if(pick)placeBox(pick[1],true);
+  }
+  // ② 鬼は出てから3秒後に、古い順で隔離
+  if(autoMode===2){const o=G.oni.filter(o=>o.age>=AUTO_Q).sort((a,b)=>b.age-a.age)[0];if(o)quarantine(o,true)}
+}
+let hudCache="";
+function renderHud(){
+  const healthy=G.idle+G.ants.length;
+  const stallN=G.stallT>=STALL_WARN?Math.max(1,Math.ceil(STALL_WARN+STALL_GRACE-G.stallT)):0;
+  const key=`${healthy}|${G.oni.length}|${G.quar.length}|${stallN}`;if(key===hudCache)return;hudCache=key;
+  document.getElementById("hNest").textContent=`元気 ${healthy}/${POOL}`;
+  document.getElementById("hOni").textContent=G.oni.length?`鬼 ${G.oni.length}`:"";
+  document.getElementById("hQ").textContent=G.quar.length?`隔離 ${G.quar.length}/${QCAP}`:"";
+  document.getElementById("hStall").textContent=stallN?`停滞を検知しました。終了まで ${stallN}`:"";
+}
+cv.addEventListener("pointerdown",e=>{
+  if(!G||G.state!=="play"||!G.oni.length)return;
+  const r=cv.getBoundingClientRect(),u=(e.clientX-r.left-view.ox)/view.cell,v=(e.clientY-r.top-view.oy)/view.cell;
+  const reach=Math.max(1.4,24/view.cell);let best=null,bd=reach*reach;
+  for(const o of G.oni){const d=(o.x-u)**2+(o.y-v)**2;if(d<bd){bd=d;best=o}}
+  if(!best)return;
+  if(!quarantine(best,false))toast("隔離室がいっぱいです");
+});
+
+/* ========== 観測レポート（クリア／失敗） ========== */
+const ov=document.getElementById("ov");
+function artCanvas(max){
+  const L=G.L,s=Math.max(1,Math.floor(max/Math.max(L.w,L.h))),c=document.createElement("canvas");
+  c.width=L.w*s;c.height=L.h*s;const x=c.getContext("2d");
+  for(let i=0;i<L.grid.length;i++)if(L.grid[i]>=0){x.fillStyle=L.palette[L.grid[i]];x.fillRect(i%L.w*s,((i/L.w)|0)*s,s,s)}
+  return c;
+}
+function reportText(ok){
+  const s=G.stats,eaten=G.total-G.left;
+  const base=current.kind==="level"?SPECIMEN[current.index]:"ナゾノヒョウホン";
+  const tag=!ok?(s.stalled?"追跡打切":"観測中断"):s.infect===0?"模範個体":s.infect>=8?"警戒レベル：高":"経過観察";
+  let note;
+  if(s.stalled)note="鬼を見失い、追跡不能と判断。観測を打ち切る。";
+  else if(!ok)note="巣は鬼で満たされた。本観測を中断する。";
+  else if(s.infect>=8)note="特に異常は見られませんでした。";
+  else if(s.born===0)note="鬼の出現は確認されなかった。平穏。";
+  else if(s.infect===0)note="鬼の出現を確認。伝染は観測されず。";
+  else if(s.quar>s.cure)note="隔離措置が有効に機能した。";
+  else note="異なる色との接触により、多くの個体が自然に回復した。";
+  const sum=ok?`キューブ${eaten}個を完食。`:s.stalled?`${G.total}個中${eaten}個で、動きが止まった。`:`${G.total}個中${eaten}個で観測途絶。`;
+  return{eaten,name:base,tag,note,sum,sum2:`鬼の同時最大は${s.peak}匹。`};
+}
+function showReport(ok){
+  const s=G.stats,t=reportText(ok),no=String(G.runNo).padStart(5,"0");
+  const rows=[["cube","キューブ摂取",t.eaten],["born","鬼の出現",s.born],["inf","鬼化",s.infect],
+              ["cure","もどった",s.cure],["q","隔離",s.quar],["peak","最大の鬼",s.peak]];
+  const card=document.getElementById("card");
+  card.className="report";
+  card.innerHTML=`
+    <header class="rp-head">
+      <span class="rp-icon"></span>
+      <div class="rp-title"><span>ARINKO DOT</span><strong id="ovt">REPORT</strong></div>
+      <div class="rp-no"><small>REPORT No.</small><b>${no}</b><small>Field Observation Record</small></div>
+    </header>
+    <div class="stamp ${ok?"ok":"ng"}" aria-label="${ok?"クリア":"失敗"}">${ok?"CLEAR":"FAILURE"}</div>
+    <section class="rp-sum"><h3>今回の観測結果</h3><p>${t.sum}</p><p>${t.sum2}</p></section>
+    <div class="rp-grid">
+      <section class="rp-box spec"><h4>SPECIMEN</h4><div class="rp-art"></div>
+        <p class="rp-name">${t.name}</p><p class="rp-tag">（${t.tag}）</p></section>
+      <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section>
+    </div>
+    <section class="rp-box"><h4>AGENT TRAITS</h4><div class="traits">${G.L.palette.map((c,i)=>
+      `<span class="trait"><i style="background:${c}"></i>${G.traits[i].name}</span>`).join("")}</div></section>
+    <section class="rp-box note"><h4>FIELD NOTE</h4><p>${t.note}</p></section>
+    <div class="row" id="ovb"></div>
+    <footer class="rp-foot"><span>MODE: ${AUTO_CODE[G.mode]}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
+  card.querySelector(".rp-icon").appendChild(artCanvas(40));
+  card.querySelector(".rp-art").appendChild(artCanvas(150));
+  const btns=[];
+  if(ok&&current.kind==="level"&&current.index<LEVELS.length-1)
+    btns.push(["次の絵へ",()=>{current={kind:"level",index:current.index+1};seed=Date.now()%100000;start()}]);
+  btns.push(["もう一度",()=>{seed=Date.now()%100000;start()},btns.length>0]);
+  const row=card.querySelector("#ovb");
+  btns.forEach(([tx,f,sub])=>{const b=document.createElement("button");b.className="btn"+(sub?" sub":"");b.textContent=tx;b.onclick=f;row.appendChild(b)});
+  ov.classList.add("on","rp");ov.scrollTop=0;row.firstChild.focus({preventScroll:true});
+}
+function showDialog(title,text,buttons){
+  const card=document.getElementById("card");card.className="card";
+  card.innerHTML=`<h2 id="ovt"></h2><p></p><div class="row" id="ovb"></div>`;
+  card.querySelector("h2").textContent=title;card.querySelector("p").textContent=text;
+  const row=card.querySelector("#ovb");
+  buttons.forEach(([t,f,sub])=>{const b=document.createElement("button");b.className="btn"+(sub?" sub":"");b.textContent=t;b.onclick=f;row.appendChild(b)});
+  ov.classList.remove("rp");ov.classList.add("on");row.firstChild.focus();
+}
+function hideOverlay(){ov.classList.remove("on","rp")}
+function win(){G.state="win";showReport(true)}
+function lose(){G.state="lose";showReport(false)}
+function stuck(){
+  G.state="stuck";const btns=[];
+  if(!G.extra)btns.push(["待機所を1つ増やす",()=>{G.extra=true;G.slots.push(null);G.state="play";hideOverlay();renderNest()}]);
+  btns.push(["最初からやり直す",()=>start(),btns.length>0]);
+  showDialog("進めなくなりました","待機所が埋まっていて、どのアリも食べられるキューブに届きません。",btns);
+}
+let toastT;function toast(t){const e=document.getElementById("toast");e.textContent=t;e.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>e.classList.remove("on"),1300)}
+
+/* ========== 入力・ループ ========== */
+document.getElementById("retry").onclick=()=>start();
+document.getElementById("file").addEventListener("change",e=>{
+  const f=e.target.files[0];e.target.value="";if(!f)return;
+  const img=new Image(),url=URL.createObjectURL(f);
+  img.onload=()=>{const L=imageToLevel(img);URL.revokeObjectURL(url);
+    if(!L){toast("この画像からは絵を作れませんでした");return}
+    customLevel=L;current={kind:"custom"};seed=Date.now()%100000;start()};
+  img.onerror=()=>{URL.revokeObjectURL(url);toast("画像を読み込めませんでした")};
+  img.src=url;
+});
+window.addEventListener("resize",()=>{if(G)layout()});
+window.__speed=1;
+let last=performance.now();
+function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;
+  if(G){for(let k=0;k<window.__speed;k++)step(dt);draw()}requestAnimationFrame(loop)}
+start();requestAnimationFrame(loop);
+</script>
+</body>
+</html>

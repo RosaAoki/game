@@ -602,7 +602,7 @@ function stepBalance(dt){
 function makeOni(x,y,color,job){
   const col=G.L.palette[color];refresh();const W=navW(),ex=Math.floor(x)+MX,ey=Math.floor(y)+MT;
   if(ex<0||ey<0||ex>=W||ey>=navH()||!G.pass[ey*W+ex]){[x,y]=cellCenter(cellOf(x,y));}
-  G.oni.push({x,y,color,job,t:G.traits[color].pulse,path:[],repath:0,age:0,walk:0,ang:0,carry:-1,body:shade(col,-.3),dark:"#3a0c10"});
+  G.oni.push({x,y,color,job,t:G.traits[color].pulse*(difficulty==="critical"?.5:1),path:[],repath:0,age:0,walk:0,ang:0,carry:-1,body:shade(col,-.3),dark:"#3a0c10"});
   G.stats.peak=Math.max(G.stats.peak,G.oni.length);
 }
 function infect(a){
@@ -665,7 +665,7 @@ function stepOni(dt){
       else if(!o.path.length){const W=navW(),H=navH();for(let k=0;k<25;k++){const c=Math.floor(Math.random()*W*H),cy=(c/W)|0;if(B.dist[c]>0&&cy<G.L.h+MT+1){o.path=smooth(chain(B,c).map(cellCenter));break}}}
       if(o.path.length>1&&clearLine([o.x,o.y],o.path[1]))o.path.shift()}
     follow(o,tr.speed,dt);o.t-=dt;
-    if(o.t<=0){o.t=tr.pulse;addFx({kind:"ring",x:o.x,y:o.y,r0:.3,r1:RANGE,dur:.5,color:"rgb(200,40,50)"});
+    if(o.t<=0){o.t=tr.pulse*(difficulty==="critical"?.5:1);addFx({kind:"ring",x:o.x,y:o.y,r0:.3,r1:RANGE,dur:.5,color:"rgb(200,40,50)"});
       if(difficulty==="critical"){
         const R2=RANGE*RANGE;
         const sameNear=G.ants.filter(a=>a.immune<=0&&a.phase!=="back"&&a.color===o.color&&(a.x-o.x)**2+(a.y-o.y)**2<=R2)

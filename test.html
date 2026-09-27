@@ -468,7 +468,7 @@ function renderAuto(){
 }
 function renderDifficulty(){
   const el=document.getElementById("difficulty");if(!el)return;el.innerHTML="";
-  [["normal","標準"],["chaos","混沌"]].forEach(([key,label])=>{
+  [["normal","標準"],["chaos","混沌"],["critical","臨界"]].forEach(([key,label])=>{
     const b=document.createElement("button");b.className="chip";b.textContent=label;
     b.setAttribute("aria-pressed",difficulty===key);b.onclick=()=>{difficulty=key;renderDifficulty()};
     el.appendChild(b);
@@ -653,14 +653,30 @@ function stepOni(dt){
   for(const o of G.oni.slice()){
     if(!G.oni.includes(o))continue;const tr=G.traits[o.color];o.age+=dt;o.walk+=dt*22;o.repath-=dt;
     if(o.repath<=0||!o.path.length){o.repath=.4;
-      const goOnly=difficulty==="chaos"&&Math.random()<0.5; // 混沌:50%で未処理個体を常にロックオン
-      const prey=nearestAnt(o,6,true,goOnly)||nearestAnt(o,6,false,goOnly),B=bfs(cellOf(o.x,o.y));
+      let prey;
+      if(difficulty==="critical"&&Math.random()<0.5){
+        prey=nearestAnt(o,6,true,true); // 臨界:同色・未処理(go)限定。見つからなくてもフォールバックせず彷徨う
+      }else{
+        const goOnly=difficulty==="chaos"&&Math.random()<0.5; // 混沌:50%で未処理個体を常にロックオン
+        prey=nearestAnt(o,6,true,goOnly)||nearestAnt(o,6,false,goOnly);
+      }
+      const B=bfs(cellOf(o.x,o.y));
       if(prey){const c=cellOf(prey.x,prey.y);if(B.dist[c]>=0)o.path=smooth(chain(B,c).map(cellCenter))}
       else if(!o.path.length){const W=navW(),H=navH();for(let k=0;k<25;k++){const c=Math.floor(Math.random()*W*H),cy=(c/W)|0;if(B.dist[c]>0&&cy<G.L.h+MT+1){o.path=smooth(chain(B,c).map(cellCenter));break}}}
       if(o.path.length>1&&clearLine([o.x,o.y],o.path[1]))o.path.shift()}
     follow(o,tr.speed,dt);o.t-=dt;
-    if(o.t<=0){o.t=tr.pulse;addFx({kind:"ring",x:o.x,y:o.y,r0:.3,r1:RANGE,dur:.5,color:"rgb(200,40,50)"});const a=nearestAnt(o,RANGE,false);
-      if(!a)addFx({kind:"text",x:o.x,y:o.y,text:"……",dur:.8,color:"rgb(120,90,70)"});else if(a.color===o.color){if(a.phase!=="back")infect(a)}else cure(o,"もどった！")}
+    if(o.t<=0){o.t=tr.pulse;addFx({kind:"ring",x:o.x,y:o.y,r0:.3,r1:RANGE,dur:.5,color:"rgb(200,40,50)"});
+      if(difficulty==="critical"){
+        const R2=RANGE*RANGE;
+        const sameNear=G.ants.filter(a=>a.immune<=0&&a.phase!=="back"&&a.color===o.color&&(a.x-o.x)**2+(a.y-o.y)**2<=R2)
+          .sort((a,b)=>((a.x-o.x)**2+(a.y-o.y)**2)-((b.x-o.x)**2+(b.y-o.y)**2)).slice(0,3);
+        const hasDiff=G.ants.some(a=>a.immune<=0&&a.color!==o.color&&(a.x-o.x)**2+(a.y-o.y)**2<=R2);
+        if(!sameNear.length&&!hasDiff)addFx({kind:"text",x:o.x,y:o.y,text:"……",dur:.8,color:"rgb(120,90,70)"});
+        else{sameNear.forEach(a=>infect(a));if(hasDiff)cure(o,"もどった！")}
+      }else{
+        const a=nearestAnt(o,RANGE,false);
+        if(!a)addFx({kind:"text",x:o.x,y:o.y,text:"……",dur:.8,color:"rgb(120,90,70)"});else if(a.color===o.color){if(a.phase!=="back")infect(a)}else cure(o,"もどった！")
+      }}
   }
   // 隔離所：時間が来たら、元気なアリとして巣へ戻す（仕事はもう手放し済みなので、ただ戻すだけでいい）
   for(const q of G.quar.slice()){q.t-=dt;
@@ -710,7 +726,7 @@ function showReport(ok){
   <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section></div>
   <section class="rp-box"><h4>AGENT TRAITS</h4><div class="traits">${G.L.palette.map((c,i)=>`<span class="trait"><i style="background:${c}"></i>${G.traits[i].name}</span>`).join("")}</div></section>
   <section class="rp-box note"><h4>FIELD NOTE</h4><p>${t.note}</p></section><div class="row" id="ovb"></div>
-  <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
+  <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":G.difficulty==="critical"?"臨界":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
   card.querySelector(".rp-icon").appendChild(artCanvas(40));card.querySelector(".rp-art").appendChild(artCanvas(150));
   const btns=[];if(ok&&current.kind==="level"&&current.index<LEVELS.length-1)btns.push(["次の絵へ",()=>{current={kind:"level",index:current.index+1};seed=Date.now()%100000;start()}]);
   btns.push(["もう一度",()=>{seed=Date.now()%100000;start()},btns.length>0]);const row=card.querySelector("#ovb");
@@ -741,7 +757,7 @@ function showMutationReport(){
   <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section></div>
   <section class="rp-box"><h4>AGENT TRAITS</h4><div class="traits">${G.L.palette.map((c,i)=>`<span class="trait"><i style="background:${c}"></i>${G.traits[i].name}</span>`).join("")}</div></section>
   <section class="rp-box note"><h4>FIELD NOTE</h4><p>${MUTATION_NOTES[n-1]}</p></section><div class="row" id="ovb"></div>
-  <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
+  <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":G.difficulty==="critical"?"臨界":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
   card.querySelector(".rp-icon").appendChild(artCanvas(40));card.querySelector(".rp-art").appendChild(artCanvas(150));
   const row=card.querySelector("#ovb");
   const b=document.createElement("button");b.className="btn";b.textContent="もう一度";b.onclick=()=>{seed=Date.now()%100000;start()};row.appendChild(b);

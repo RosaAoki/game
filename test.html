@@ -110,6 +110,7 @@ canvas{display:block;width:100%}
 </header>
 <div id="menu">
   <div class="chips" id="levels"></div>
+  <div class="chips" id="difficulty"></div>
   <p class="guide">箱をタップすると、箱からアリが出てきて絵を外側から食べます。食べ終わったアリは穴へ帰ります。鬼アリは近くの同じ色のアリを鬼にし、ちがう色のアリに会うと元に戻ります。鬼はタップで隔離。</p>
   <button class="btn" id="startBtn" style="width:100%">スタート</button>
 </div>
@@ -284,6 +285,7 @@ const lum=h=>{const[r,g,b]=rgb(h);return(.299*r+.587*g+.114*b)/255};
 const cv=document.getElementById("cv"),ctx=cv.getContext("2d"),nestEl=document.getElementById("nest"),trayEl=document.getElementById("tray");
 let G=null,view={cell:20,ox:0,oy:0,dpr:1},sprites=[];
 let current={kind:"level",index:1},seed=Date.now()%100000,autoMode=0;
+let difficulty="normal"; // "normal" | "chaos"
 const AUTO_LABEL=["手動","オートA","オートB"],AUTO_CODE=["MANUAL","AUTO A","AUTO B"],SPECIMEN=["ヒシガタモザイク","アリンコキノコ","ユウヤケノオカ"];
 let POOL=30,RANGE=3;const QCAP=2,QTIME=6,OMEN=1.6,AUTO_Q=3,STALL_WARN=20,STALL_GRACE=5,IMMUNE=4;
 const TRAITS=[{name:"おっとり",pulse:5,speed:4.5},{name:"ふつう",pulse:3.8,speed:5.5},{name:"せっかち",pulse:2.8,speed:6.8}];
@@ -295,11 +297,11 @@ function start(){
   const cols=buildLayout(L,seed,cfg);let left=0;for(const v of L.grid)if(v>=0)left++;
   G={L,g:Int16Array.from(L.grid),res:new Uint8Array(L.w*L.h),ex:null,out:null,pass:null,holeBfs:null,exDirty:true,
     cols,slots:new Array(5).fill(null),extra:false,ants:[],left,total:left,state:"play",endT:0,hole:holeOf(L),
-    cfg,runNo:seed,mode:autoMode,idle:POOL,oni:[],quar:[],fx:[],clock:0,firstDone:false,omen:-1,nextOniAt:0,autoT:0,
+    cfg,runNo:seed,mode:autoMode,difficulty,idle:POOL,oni:[],quar:[],fx:[],clock:0,firstDone:false,omen:-1,nextOniAt:0,autoT:0,
     stats:{infect:0,cure:0,quar:0,born:0,peak:0,stalled:false},stallT:0,stallSnap:null,
     stallDisabled:false,balanceT:0,balanceShown:false,
     traits:L.palette.map(()=>TRAITS[Math.floor(Math.random()*TRAITS.length)])};
-  hudCache="";hideOverlay();layout();refresh();renderLevels();renderAuto();renderNest();renderTray();
+  hudCache="";hideOverlay();layout();refresh();renderLevels();renderDifficulty();renderAuto();renderNest();renderTray();
   document.getElementById("endGameBtn").hidden=true;
 }
 
@@ -463,6 +465,14 @@ function renderAuto(){
   const el=document.getElementById("auto");el.innerHTML="";
   AUTO_LABEL.forEach((t,i)=>{const b=document.createElement("button");b.className="seg";b.textContent=t;b.setAttribute("aria-pressed",autoMode===i);b.onclick=()=>{autoMode=i;if(G){G.mode=Math.max(G.mode,i);G.autoT=0}renderAuto()};el.appendChild(b)});
   document.getElementById("autoHint").textContent=autoMode===0?"":autoMode===1?"空いた待機所に、いま食べられる色の箱を自動で出します":"箱を自動で出し、鬼は3秒後に古い順から隔離します";
+}
+function renderDifficulty(){
+  const el=document.getElementById("difficulty");if(!el)return;el.innerHTML="";
+  [["normal","標準"],["chaos","混沌"]].forEach(([key,label])=>{
+    const b=document.createElement("button");b.className="chip";b.textContent=label;
+    b.setAttribute("aria-pressed",difficulty===key);b.onclick=()=>{difficulty=key;renderDifficulty()};
+    el.appendChild(b);
+  });
 }
 trayEl.addEventListener("click",e=>{
   const el=e.target.closest("button[data-col]");if(!el||G.state!=="play")return;
@@ -642,7 +652,9 @@ function stepOni(dt){
     if(cand.length){infect(cand[Math.floor(Math.random()*cand.length)]);G.stats.infect--;G.stats.born++;G.firstDone=true;G.nextOniAt=G.clock+Math.max(6,-Math.log(1-Math.random())*cfg.mean)}else G.omen=0}}
   for(const o of G.oni.slice()){
     if(!G.oni.includes(o))continue;const tr=G.traits[o.color];o.age+=dt;o.walk+=dt*22;o.repath-=dt;
-    if(o.repath<=0||!o.path.length){o.repath=.4;const prey=nearestAnt(o,6,true)||nearestAnt(o,6,false),B=bfs(cellOf(o.x,o.y));
+    if(o.repath<=0||!o.path.length){o.repath=.4;
+      const goOnly=difficulty==="chaos"&&Math.random()<0.5; // 混沌:50%で未処理個体を常にロックオン
+      const prey=nearestAnt(o,6,true,goOnly)||nearestAnt(o,6,false,goOnly),B=bfs(cellOf(o.x,o.y));
       if(prey){const c=cellOf(prey.x,prey.y);if(B.dist[c]>=0)o.path=smooth(chain(B,c).map(cellCenter))}
       else if(!o.path.length){const W=navW(),H=navH();for(let k=0;k<25;k++){const c=Math.floor(Math.random()*W*H),cy=(c/W)|0;if(B.dist[c]>0&&cy<G.L.h+MT+1){o.path=smooth(chain(B,c).map(cellCenter));break}}}
       if(o.path.length>1&&clearLine([o.x,o.y],o.path[1]))o.path.shift()}
@@ -698,7 +710,7 @@ function showReport(ok){
   <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section></div>
   <section class="rp-box"><h4>AGENT TRAITS</h4><div class="traits">${G.L.palette.map((c,i)=>`<span class="trait"><i style="background:${c}"></i>${G.traits[i].name}</span>`).join("")}</div></section>
   <section class="rp-box note"><h4>FIELD NOTE</h4><p>${t.note}</p></section><div class="row" id="ovb"></div>
-  <footer class="rp-foot"><span>MODE: ${G.mode}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
+  <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
   card.querySelector(".rp-icon").appendChild(artCanvas(40));card.querySelector(".rp-art").appendChild(artCanvas(150));
   const btns=[];if(ok&&current.kind==="level"&&current.index<LEVELS.length-1)btns.push(["次の絵へ",()=>{current={kind:"level",index:current.index+1};seed=Date.now()%100000;start()}]);
   btns.push(["もう一度",()=>{seed=Date.now()%100000;start()},btns.length>0]);const row=card.querySelector("#ovb");
@@ -729,7 +741,7 @@ function showMutationReport(){
   <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section></div>
   <section class="rp-box"><h4>AGENT TRAITS</h4><div class="traits">${G.L.palette.map((c,i)=>`<span class="trait"><i style="background:${c}"></i>${G.traits[i].name}</span>`).join("")}</div></section>
   <section class="rp-box note"><h4>FIELD NOTE</h4><p>${MUTATION_NOTES[n-1]}</p></section><div class="row" id="ovb"></div>
-  <footer class="rp-foot"><span>MODE: ${G.mode}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
+  <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
   card.querySelector(".rp-icon").appendChild(artCanvas(40));card.querySelector(".rp-art").appendChild(artCanvas(150));
   const row=card.querySelector("#ovb");
   const b=document.createElement("button");b.className="btn";b.textContent="もう一度";b.onclick=()=>{seed=Date.now()%100000;start()};row.appendChild(b);
@@ -764,6 +776,7 @@ document.getElementById("startBtn").onclick=goPlay;
 document.getElementById("toMenu").onclick=()=>setMenuVisible(true);
 document.getElementById("endGameBtn").onclick=()=>{if(G.state==="play"){G.state="lose";showMutationReport()}};
 renderLevels();
+renderDifficulty();
 document.getElementById("file").addEventListener("change",e=>{
   const f=e.target.files[0];e.target.value="";if(!f)return;const img=new Image(),url=URL.createObjectURL(f);
   img.onload=()=>{const L=imageToLevel(img);URL.revokeObjectURL(url);if(!L){toast("この画像からは絵を作れませんでした");return}customLevel=L;current={kind:"custom"};goPlay()};

@@ -9,7 +9,8 @@
 body{background:linear-gradient(180deg,#0a0a1a,#08080f);min-height:100vh;
   display:flex;flex-direction:column;align-items:center;padding:14px 8px 40px;
   font-family:'Courier New',monospace;user-select:none;color:#fff}
-h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:14px}
+h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:4px}
+.subtitle{color:#6b7a99;font-size:12px;letter-spacing:1px;margin-bottom:14px}
 .game-area{display:flex;gap:10px;align-items:flex-start}
 #board{border:2px solid #1a1a32;background:#06061a;display:block;flex-shrink:0;
   transition:border-color .12s,box-shadow .12s}
@@ -79,6 +80,7 @@ h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:14px}
 </head>
 <body>
 <h1>✦Nagameru TETRIS ✦</h1>
+<div class="subtitle">on the banks of Lethe</div>
 <div class="game-area">
   <div class="bwrap">
     <canvas id="board"></canvas>

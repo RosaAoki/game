@@ -39,6 +39,9 @@ h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:4px}
   font-size:12px;letter-spacing:1px;cursor:pointer}
 #auto-btn.on{background:#1a1a0a;border-color:#5a5a20;color:#FFD700}
 #speed-btn.fast{background:#1a1a0a;border-color:#5a5a20;color:#FFD700}
+#special-btn{padding:7px 16px;border-radius:20px;background:#12122a;border:1px solid #24244a;
+  color:#888;font-family:inherit;font-size:11px;letter-spacing:1px;cursor:pointer}
+#special-btn.on{background:#1a1a0a;border-color:#5a5a20;color:#FFD700}
 .frag-counter{margin-top:10px;color:#FFD700;font-size:12px;letter-spacing:1px;cursor:pointer;
   text-align:center;text-decoration:underline dotted;text-underline-offset:3px}
 .frag-ov{display:none;position:fixed;inset:0;z-index:50;
@@ -89,6 +92,7 @@ h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:4px}
       <div id="ov-title"></div>
       <div style="color:#444;font-size:12px" id="ov-sub"></div>
       <button class="start-btn" id="start-btn">スタート</button>
+      <button id="special-btn">スペシャル: ON</button>
     </div>
   </div>
   <div class="side">
@@ -152,6 +156,10 @@ const nx=nc.getContext('2d');
 const LS='trt_star_best';
 const getBest=()=>{try{return parseInt(localStorage.getItem(LS)||'0')}catch(e){return 0}};
 const saveBest=s=>{try{if(s>getBest())localStorage.setItem(LS,String(s))}catch(e){}};
+const SPLS='trt_star_special';
+const getSpecialOn=()=>{try{const v=localStorage.getItem(SPLS);return v===null?true:v==='1'}catch(e){return true}};
+const saveSpecialOn=v=>{try{localStorage.setItem(SPLS,v?'1':'0')}catch(e){}};
+let specialOn=getSpecialOn();
 
 /* ===== かけら(断片)システム =====
    FRAGMENT_MS[i]   = i番目のかけらを解放するのに必要な「消したライン数の累計(全プレイ通算)」
@@ -329,7 +337,7 @@ function sweep(){
 const tickMs=()=>Math.max(80,500-(lvl-1)*45);
 
 function mkP(count=0){
-  const sp=count>0&&count%7===0&&Math.random()<0.8;
+  const sp=specialOn&&count>0&&count%7===0&&Math.random()<0.8;
   const b=sp?SP:PS[Math.floor(Math.random()*PS.length)];
   return{shape:b.shape.map(r=>[...r]),color:b.color,isSpecial:!!sp,
     x:Math.floor((COLS-b.shape[0].length)/2),y:-(b.shape.length)+1};
@@ -529,6 +537,15 @@ document.getElementById('speed-btn').addEventListener('click',()=>{
   b.textContent='速度: '+SPEEDS[speedIdx].label;
   b.classList.toggle('fast',speedIdx>0);
 });
+function renderSpecialBtn(){
+  const b=document.getElementById('special-btn');
+  b.textContent='スペシャル: '+(specialOn?'ON':'OFF');
+  b.classList.toggle('on',specialOn);
+}
+document.getElementById('special-btn').addEventListener('click',()=>{
+  specialOn=!specialOn;saveSpecialOn(specialOn);renderSpecialBtn();
+});
+renderSpecialBtn();
 
 renderFragCounter();
 requestAnimationFrame(loop);

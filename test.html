@@ -273,7 +273,7 @@ function start(){
     cols,slots:new Array(5).fill(null),extra:false,ants:[],left,total:left,state:"play",endT:0,hole:holeOf(L),
     cfg,runNo:seed,mode:autoMode,difficulty,noCure,idle:POOL,oni:[],quar:[],fx:[],clock:0,firstDone:false,omen:-1,nextOniAt:0,autoT:0,
     stats:{infect:0,cure:0,quar:0,born:0,peak:0,stalled:false},stallT:0,stallSnap:null,
-    stallDisabled:false,balanceT:0,balanceShown:false,
+    wipe:false,stallDisabled:false,balanceT:0,balanceShown:false,
     traits:L.palette.map(()=>TRAITS[Math.floor(Math.random()*TRAITS.length)])};
   hudCache="";hideOverlay();layout();refresh();renderLevels();renderDifficulty();renderAuto();renderNest();renderTray();
   document.getElementById("endGameBtn").hidden=true;
@@ -548,7 +548,11 @@ function step(dt){
 
   if(G.state!=="play")return;
   if(G.left===0){G.endT+=dt;if(G.endT>.9&&!G.ants.length)win();return}
-  if(G.idle+G.ants.length===0&&G.oni.length){lose();return}
+  // 全滅(元気なアリ0)は失敗ではなく観測の続き。手動で隔離すれば戻ってくるので、終了はせず「終了」ボタンで締める
+  const wipe=G.idle+G.ants.length===0&&G.oni.length>0;
+  if(wipe!==G.wipe){G.wipe=wipe;const eb=document.getElementById("endGameBtn");
+    if(wipe){G.stallT=0;G.stallSnap=null;eb.hidden=false;toast("元気なアリがいません。鬼を隔離すると戻ってきます")}
+    else if(!G.balanceShown)eb.hidden=true}
   if(G.ants.length||G.idle===0)return;
   if(G.oni.some(o=>o.job)||G.quar.some(q=>q.job))return;
   refresh();
@@ -557,7 +561,7 @@ function step(dt){
   if(!canMove&&!canTap)stuck();
 }
 function stepStall(dt){
-  if(G.state!=="play"||G.stallDisabled)return;
+  if(G.state!=="play"||G.stallDisabled||G.wipe)return;
   if(!G.oni.length){G.stallT=0;G.stallSnap=null;return}
   const snap=G.left+","+G.stats.infect+","+G.stats.cure;
   if(snap!==G.stallSnap){G.stallSnap=snap;G.stallT=0;return}

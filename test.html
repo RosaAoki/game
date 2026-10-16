@@ -87,7 +87,7 @@ canvas{display:block;width:100%}
 .rp-no{font-family:var(--dot);text-align:right;border-left:1.5px solid #6b5540;padding-left:10px;line-height:1.2}
 .rp-no small{display:block;font-size:9.5px;color:#7a6650}.rp-no b{font-size:20px;font-weight:400}
 .stamp{position:absolute;right:10px;top:96px;font-family:var(--dot);font-size:26px;line-height:1;padding:3px 10px;border:4px double currentColor;border-radius:8px;transform:rotate(-12deg);opacity:.86;mix-blend-mode:multiply;animation:stamp .45s cubic-bezier(.2,1.5,.4,1) .3s both;pointer-events:none}
-.stamp.ok{color:#c8322f}.stamp.ng{color:#2f3f6b}
+.stamp.ok{color:#c8322f}.stamp.ng{color:#566a80}
 @keyframes stamp{from{transform:rotate(-12deg) scale(2.6);opacity:0}to{transform:rotate(-12deg) scale(1);opacity:.86}}
 .rp-sum h3{margin:12px 0 4px;font-size:14px}.rp-sum p{margin:0;font-size:13.5px;line-height:1.7;max-width:57%}
 .rp-grid{display:grid;grid-template-columns:1fr 1.15fr;gap:10px}
@@ -698,7 +698,7 @@ function showReport(ok){
   const s=G.stats,t=reportText(ok),no=String(G.runNo).padStart(5,"0"),rows=[["cube","キューブ摂取",t.eaten],["born","鬼の出現",s.born],["inf","鬼化",s.infect],["cure","もどった",s.cure],["q","隔離",s.quar],["peak","最大の鬼",s.peak]];
   const card=document.getElementById("card");card.className="report";
   card.innerHTML=`<header class="rp-head"><span class="rp-icon"></span><div class="rp-title"><span>ARINKO DOT</span><strong id="ovt">REPORT</strong></div><div class="rp-no"><small>REPORT No.</small><b>${no}</b><small>Field Observation Record</small></div></header>
-  <div class="stamp ${ok?"ok":"ng"}" aria-label="${ok?"クリア":"失敗"}">${ok?"CLEAR":"FAILURE"}</div>
+  <div class="stamp ${ok?"ok":"ng"}" aria-label="${ok?"クリア":"記録"}">${ok?"CLEAR":"RECORDED"}</div>
   <section class="rp-sum"><h3>今回の観測結果</h3><p>${t.sum}</p><p>${t.sum2}</p>${ok&&G.balanceShown&&G.oni.length===0?'<p style="color:#4d7a2a;font-weight:700;letter-spacing:.5px;margin-top:6px">ALL INDIVIDUALS TREATED.</p>':''}</section>
   <div class="rp-grid"><section class="rp-box spec"><h4>SPECIMEN</h4><div class="rp-art"></div><p class="rp-name">${t.name}</p><p class="rp-tag">（${t.tag}）</p></section>
   <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section></div>

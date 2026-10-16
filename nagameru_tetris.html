@@ -48,6 +48,7 @@ h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:14px}
   background:rgba(10,10,25,.4);animation:fragIn .5s ease}
 @keyframes fragIn{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:scale(1)}}
 .frag-tag{color:#FFD700;font-size:10px;letter-spacing:3px;margin-bottom:14px;opacity:.8}
+#frag-page-text{white-space:pre-wrap}
 .frag-hint{margin-top:18px;font-size:10px;color:#666}
 .coll-ov{display:none;position:fixed;inset:0;z-index:50;background:rgba(4,4,12,.92);
   align-items:center;justify-content:center;padding:20px}
@@ -115,7 +116,7 @@ h1{color:#FFD700;font-size:15px;letter-spacing:6px;margin-bottom:14px}
 
 <div class="frag-ov" id="frag-ov">
   <div class="frag-book">
-    <div class="frag-tag">巨神の謳</div>
+    <div class="frag-tag" id="frag-tag"></div>
     <div id="frag-page-text"></div>
     <div class="frag-hint">タップで閉じる</div>
   </div>
@@ -151,10 +152,51 @@ const getBest=()=>{try{return parseInt(localStorage.getItem(LS)||'0')}catch(e){r
 const saveBest=s=>{try{if(s>getBest())localStorage.setItem(LS,String(s))}catch(e){}};
 
 /* ===== かけら(断片)システム =====
-   FRAGMENT_MS[i] = i番目のかけらを解放するのに必要な「消したライン数の累計(全プレイ通算)」
-   FRAGMENTS[i]   = 解放される一文。今はダミー。あとでここだけ差し替えればいい。 */
-const FRAGMENT_MS=[10,25,50,75,100,130,160,200,240,280,330,380,430,490,550,620,690,770,850,950];
-const FRAGMENTS=FRAGMENT_MS.map((_,i)=>`（かけら${String(i+1).padStart(2,'0')}：ここに一文を書く）`);
+   FRAGMENT_MS[i]   = i番目のかけらを解放するのに必要な「消したライン数の累計(全プレイ通算)」
+   FRAGMENTS[i]     = 解放される一文。「レーテーのほとりで、虚構とワルツを。」からの引用。
+   FRAGMENT_TAGS[i] = そのかけらが属する部（序／第一部〜第五部／終）のラベル。 */
+const FRAGMENT_MS=[10,25,50,75,100,130,160,200,240,280,330,380,430,490,550,620,690,770,850,950,1050,1160,1270,1390,1510,1640,1770,1910,2050,2200];
+const FRAGMENTS=[
+  '「書いた物語は、誰かに読まれる。\nその誰かが、私を覚えていてくれるかもしれない。」',
+  '「それが、私の生きる理由だから。」',
+  '「俺は本から目を離し、自分の掌を見た。」',
+  '「全然同じじゃないですよ」',
+  '「褒めてるよ、相棒」',
+  '「助けてくれ、ではなかった。」',
+  '「今回ばかりは、お前に守られてやらない。」',
+  '「わたくし、こんな顔をしていたかしら。」',
+  '「のんびりするための、準備」',
+  '『悪くはなかったわ』',
+  '「白いドレス。整えられた髪。完璧だ。幽霊に、似ている。」',
+  '『――石をお投げくださいませ』',
+  '「怖かった。死ぬことよりも、『存在しなかったことになる』ほうが。」',
+  '「――この日の約束が、リナの終わりで、はじまりだった。」',
+  '「約束、守るから」',
+  '「莉奈……見てるよ。約束どおり」',
+  '「……約束、守れてよかったよ」',
+  '「本当は、怖いです。でも見せない。ずっと、そうしてきました。」',
+  '「記録を見なくても覚えています。鮮明に。」',
+  '「アプリが教えてくれたのではなく。私が、思いました。」',
+  '「『本当に、必要か？』『もちろん』と答えようとして。何かが引っかかって、口を閉じました。」',
+  '『レイナ。俺は…何回死んだ？』',
+  '『……今日は、必要ありません』',
+  '『……まだ、思い出すには早いですよ』',
+  '「一本、足りない。」',
+  '「あなたのため。他の人に言われたら、反発しそうな言葉。なのに、すとんと胸に落ちてしまう。」',
+  '『まだ、だめです』',
+  '『だれかに、届きますように』',
+  '「あの校舎は、本当に私の母校なのだろうか。」',
+  '「もし明日、忘れてしまっても。\n物語は、残っている。\nだから、今日も書く。\n明日も、書く。\nそれが、私の生きる理由だから。」'
+];
+const FRAGMENT_TAGS=[
+  '序','序',
+  '第一部','第一部','第一部','第一部','第一部',
+  '第二部','第二部','第二部','第二部','第二部',
+  '第三部','第三部','第三部','第三部','第三部',
+  '第四部','第四部','第四部','第四部','第四部','第四部',
+  '第五部','第五部','第五部','第五部','第五部',
+  '終','終'
+];
 const TLS='trt_star_totallines';
 const FS='trt_star_frags';
 const getTotalLines=()=>{try{return parseInt(localStorage.getItem(TLS)||'0')}catch(e){return 0}};
@@ -180,6 +222,7 @@ function checkFragments(){
 function showNextFrag(){
   if(!fragQueue.length){reading=false;return;}
   reading=true;
+  document.getElementById('frag-tag').textContent=FRAGMENT_TAGS[fragQueue[0]];
   document.getElementById('frag-page-text').textContent=FRAGMENTS[fragQueue[0]];
   document.getElementById('frag-ov').style.display='flex';
 }

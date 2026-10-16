@@ -126,7 +126,6 @@ canvas{display:block;width:100%}
 <div class="tray" id="tray"></div>
 </div>
 </div>
-<input type="file" id="file" accept="image/*" hidden>
 <div class="toast" id="toast" role="status"></div>
 <div class="overlay" id="ov" role="dialog" aria-modal="true" aria-labelledby="ovt"><div id="card" class="card"></div></div>
 
@@ -178,7 +177,6 @@ const LEVELS=[
   {name:"2",make:()=>outlined(mushroom(),"#6b4226"),jitter:16,big:.8,mystery:.15,oni:{first:.2,mean:9}},
   {name:"3",make:()=>outlined(sunset(),"#b8863b",true),jitter:24,big:.7,mystery:.25,oni:{first:.15,mean:7}}
 ];
-let customLevel=null;
 
 function computeOut(g,w,h){
   const n=w*h,out=new Uint8Array(n),q=[];
@@ -251,33 +249,6 @@ function deal(order,rng,cfg){
   return cols;
 }
 
-function imageToLevel(img,side=20,k=6){
-  const s=side/Math.max(img.naturalWidth,img.naturalHeight);
-  const w=Math.max(6,Math.round(img.naturalWidth*s)),h=Math.max(6,Math.round(img.naturalHeight*s));
-  let src=img,sw=img.naturalWidth,sh=img.naturalHeight;
-  while(sw/2>w*2){const c=document.createElement("canvas");c.width=sw=Math.round(sw/2);c.height=sh=Math.round(sh/2);c.getContext("2d").drawImage(src,0,0,sw,sh);src=c}
-  const c=document.createElement("canvas");c.width=w;c.height=h;const x=c.getContext("2d");x.imageSmoothingQuality="high";x.drawImage(src,0,0,w,h);
-  const d=x.getImageData(0,0,w,h).data,pts=[],idx=[];
-  for(let i=0;i<w*h;i++){if(d[i*4+3]<128)continue;pts.push([d[i*4],d[i*4+1],d[i*4+2]]);idx.push(i)}
-  if(pts.length<8)return null;
-  const dist=(a,b)=>(a[0]-b[0])**2+(a[1]-b[1])**2+(a[2]-b[2])**2;
-  const cen=[pts[Math.floor(pts.length/2)].slice()];
-  while(cen.length<k){let bi=0,bd=-1;pts.forEach((p,i)=>{const m=Math.min(...cen.map(c=>dist(p,c)));if(m>bd){bd=m;bi=i}});if(bd<=0)break;cen.push(pts[bi].slice())}
-  const as=new Int16Array(pts.length);
-  for(let it=0;it<14;it++){pts.forEach((p,i)=>{let b=0,bd=Infinity;cen.forEach((c,j)=>{const v=dist(p,c);if(v<bd){bd=v;b=j}});as[i]=b});
-    const sum=cen.map(()=>[0,0,0,0]);pts.forEach((p,i)=>{const s=sum[as[i]];s[0]+=p[0];s[1]+=p[1];s[2]+=p[2];s[3]++});sum.forEach((s,j)=>{if(s[3])cen[j]=[s[0]/s[3],s[1]/s[3],s[2]/s[3]]})}
-  for(let changed=true;changed;){changed=false;const cnt=cen.map(()=>0);as.forEach(a=>cnt[a]++);const alive=cen.map((_,j)=>j).filter(j=>cnt[j]>0);let pair=null,pd=48*48;
-    for(const a of alive)for(const b of alive)if(a<b){const v=dist(cen[a],cen[b]);if(v<pd){pd=v;pair=[a,b]}}
-    const tiny=alive.find(j=>cnt[j]<3&&alive.length>2);let from=-1,to=-1;
-    if(pair){[to,from]=cnt[pair[0]]>=cnt[pair[1]]?pair:[pair[1],pair[0]]}
-    else if(tiny!==undefined){from=tiny;let bd=Infinity;for(const j of alive)if(j!==tiny){const v=dist(cen[j],cen[tiny]);if(v<bd){bd=v;to=j}}}
-    if(from>=0){for(let i=0;i<as.length;i++)if(as[i]===from)as[i]=to;changed=true}}
-  const used=[...new Set(as)],remap=new Map(used.map((u,i)=>[u,i])),grid=new Int16Array(w*h).fill(-1);idx.forEach((gi,i)=>grid[gi]=remap.get(as[i]));
-  const hex=v=>Math.round(v).toString(16).padStart(2,"0"),pal=used.map(u=>"#"+cen[u].map(hex).join(""));
-  const line=used.some(u=>dist(cen[u],[59,42,42])<70*70)?"#f2ead8":"#3b2a2a";
-  return outlined({w,h,grid,palette:pal},line);
-}
-
 const rgb=h=>[1,3,5].map(i=>parseInt(h.slice(i,i+2),16));
 const shade=(h,f)=>"rgb("+rgb(h).map(v=>Math.round(f<0?v*(1+f):v+(255-v)*f)).join(",")+")";
 const lum=h=>{const[r,g,b]=rgb(h);return(.299*r+.587*g+.114*b)/255};
@@ -292,8 +263,8 @@ const TRAITS=[{name:"おっとり",pulse:5,speed:4.5},{name:"ふつう",pulse:3.
 let SPEED=6,GAP=.18;const EMERGE=.6;
 
 function start(){
-  const cfg=current.kind==="level"?LEVELS[current.index]:{jitter:16,big:.8,mystery:.2,oni:{first:.2,mean:9}};
-  const L=current.kind==="level"?cfg.make():customLevel;
+  const cfg=LEVELS[current.index];
+  const L=cfg.make();
   const cols=buildLayout(L,seed,cfg);let left=0;for(const v of L.grid)if(v>=0)left++;
   G={L,g:Int16Array.from(L.grid),res:new Uint8Array(L.w*L.h),ex:null,out:null,pass:null,holeBfs:null,exDirty:true,
     cols,slots:new Array(5).fill(null),extra:false,ants:[],left,total:left,state:"play",endT:0,hole:holeOf(L),
@@ -456,9 +427,7 @@ function renderTray(){
 }
 function renderLevels(){
   const el=document.getElementById("levels");el.innerHTML="";
-  LEVELS.forEach((lv,i)=>{const b=document.createElement("button");b.className="chip";b.textContent="レベル"+lv.name;b.setAttribute("aria-pressed",current.kind==="level"&&current.index===i);b.onclick=()=>{current={kind:"level",index:i};renderLevels()};el.appendChild(b)});
-  if(customLevel){const b=document.createElement("button");b.className="chip";b.textContent="自分の画像";b.setAttribute("aria-pressed",current.kind==="custom");b.onclick=()=>{current={kind:"custom"};renderLevels()};el.appendChild(b)}
-  const up=document.createElement("button");up.className="chip ghost";up.textContent="画像から作る";up.onclick=()=>document.getElementById("file").click();el.appendChild(up);
+  LEVELS.forEach((lv,i)=>{const b=document.createElement("button");b.className="chip";b.textContent="レベル"+lv.name;b.setAttribute("aria-pressed",current.index===i);b.onclick=()=>{current={kind:"level",index:i};renderLevels()};el.appendChild(b)});
   if(G)document.getElementById("left").textContent="残り "+G.left;
 }
 function renderAuto(){
@@ -711,7 +680,7 @@ function artCanvas(max){
   for(let i=0;i<L.grid.length;i++)if(L.grid[i]>=0){x.fillStyle=L.palette[L.grid[i]];x.fillRect(i%L.w*s,((i/L.w)|0)*s,s,s)}return c;
 }
 function reportText(ok){
-  const s=G.stats,eaten=G.total-G.left,base=current.kind==="level"?SPECIMEN[current.index]:"ナゾノヒョウホン",tag=!ok?(s.stalled?"追跡打切":"観測中断"):s.infect===0?"模範個体":s.infect>=8?"警戒レベル：高":"経過観察";
+  const s=G.stats,eaten=G.total-G.left,base=SPECIMEN[current.index],tag=!ok?(s.stalled?"追跡打切":"観測中断"):s.infect===0?"模範個体":s.infect>=8?"警戒レベル：高":"経過観察";
   let note;if(s.stalled)note="鬼を見失い、追跡不能と判断。観測を打ち切る。";else if(!ok)note="巣は鬼で満たされた。本観測を中断する。";else if(s.infect>=8)note="特に異常は見られませんでした。";else if(s.born===0)note="鬼の出現は確認されなかった。平穏。";else if(s.infect===0)note="鬼の出現を確認。伝染は観測されず。";else if(s.quar>s.cure)note="隔離措置が有効に機能した。";else note="異なる色との接触により、多くの個体が自然に回復した。";
   const sum=ok?`キューブ${eaten}個を完食。`:s.stalled?`${G.total}個中${eaten}個で、動きが止まった。`:`${G.total}個中${eaten}個で観測途絶。`;
   return{eaten,name:base,tag,note,sum,sum2:`鬼の同時最大は${s.peak}匹。`};
@@ -728,7 +697,7 @@ function showReport(ok){
   <section class="rp-box note"><h4>FIELD NOTE</h4><p>${t.note}</p></section><div class="row" id="ovb"></div>
   <footer class="rp-foot"><span>MODE: ${G.mode} / ${G.difficulty==="chaos"?"混沌":G.difficulty==="critical"?"臨界":"標準"}</span><span>— Arinko Dot —</span><span>Small steps,<br>Big discoveries.</span></footer>`;
   card.querySelector(".rp-icon").appendChild(artCanvas(40));card.querySelector(".rp-art").appendChild(artCanvas(150));
-  const btns=[];if(ok&&current.kind==="level"&&current.index<LEVELS.length-1)btns.push(["次の絵へ",()=>{current={kind:"level",index:current.index+1};seed=Date.now()%100000;start()}]);
+  const btns=[];if(ok&&current.index<LEVELS.length-1)btns.push(["次の絵へ",()=>{current={kind:"level",index:current.index+1};seed=Date.now()%100000;start()}]);
   btns.push(["もう一度",()=>{seed=Date.now()%100000;start()},btns.length>0]);const row=card.querySelector("#ovb");
   btns.forEach(([tx,f,sub])=>{const b=document.createElement("button");b.className="btn"+(sub?" sub":"");b.textContent=tx;b.onclick=f;row.appendChild(b)});
   ov.classList.add("on","rp");ov.scrollTop=0;row.firstChild.focus({preventScroll:true});
@@ -746,7 +715,7 @@ const MUTATION_NOTES=[
   "28匹。あと2匹。","29匹。最後の1匹、健闘。","30匹。全個体感染。見事というほかない。"
 ];
 function showMutationReport(){
-  const s=G.stats,eaten=G.total-G.left,base=current.kind==="level"?SPECIMEN[current.index]:"ナゾノヒョウホン",
+  const s=G.stats,eaten=G.total-G.left,base=SPECIMEN[current.index],
     no=String(G.runNo).padStart(5,"0"),n=Math.min(30,Math.max(1,G.oni.length)),
     rows=[["cube","キューブ摂取",eaten],["born","鬼の出現",s.born],["inf","鬼化",s.infect],["cure","もどった",s.cure],["q","隔離",s.quar],["peak","最大の鬼",s.peak]];
   const card=document.getElementById("card");card.className="report";
@@ -793,11 +762,6 @@ document.getElementById("toMenu").onclick=()=>setMenuVisible(true);
 document.getElementById("endGameBtn").onclick=()=>{if(G.state==="play"){G.state="lose";showMutationReport()}};
 renderLevels();
 renderDifficulty();
-document.getElementById("file").addEventListener("change",e=>{
-  const f=e.target.files[0];e.target.value="";if(!f)return;const img=new Image(),url=URL.createObjectURL(f);
-  img.onload=()=>{const L=imageToLevel(img);URL.revokeObjectURL(url);if(!L){toast("この画像からは絵を作れませんでした");return}customLevel=L;current={kind:"custom"};goPlay()};
-  img.onerror=()=>{URL.revokeObjectURL(url);toast("画像を読み込めませんでした")};img.src=url;
-});
 window.addEventListener("resize",()=>{if(G)layout()});
 window.__speed=1;let last=performance.now();
 function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;if(G&&!inMenu){for(let k=0;k<window.__speed;k++)step(dt);stepWaitroom(dt);draw()}requestAnimationFrame(loop)}

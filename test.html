@@ -273,7 +273,7 @@ function start(){
     cols,slots:new Array(5).fill(null),extra:false,ants:[],left,total:left,state:"play",endT:0,hole:holeOf(L),
     cfg,runNo:seed,mode:autoMode,difficulty,noCure,idle:POOL,oni:[],quar:[],fx:[],clock:0,firstDone:false,omen:-1,nextOniAt:0,autoT:0,
     stats:{infect:0,cure:0,quar:0,born:0,peak:0,stalled:false},stallT:0,stallSnap:null,
-    wipe:false,wipeT:0,stallDisabled:false,balanceT:0,balanceShown:false,
+    wipe:false,wipeT:0,wipeShown:false,stallDisabled:false,balanceT:0,balanceShown:false,
     traits:L.palette.map(()=>TRAITS[Math.floor(Math.random()*TRAITS.length)])};
   hudCache="";hideOverlay();layout();refresh();renderLevels();renderDifficulty();renderAuto();renderNest();renderTray();
   document.getElementById("endGameBtn").hidden=true;
@@ -551,10 +551,14 @@ function step(dt){
   // 全滅(元気なアリ0)は失敗ではなく観測の続き。手動で隔離すれば戻ってくるので、終了はせず「終了」ボタンで締める
   const wipe=G.idle+G.ants.length===0&&G.oni.length>0;
   if(wipe!==G.wipe){G.wipe=wipe;const eb=document.getElementById("endGameBtn");
-    if(wipe){G.stallT=0;G.stallSnap=null;eb.hidden=false;toast("元気なアリがいません。鬼を隔離すると戻ってきます")}
-    else if(!G.balanceShown)eb.hidden=true}
+    if(wipe){G.stallT=0;G.stallSnap=null;toast("元気なアリがいません。鬼を隔離すると戻ってきます")}
+    else{G.wipeShown=false;if(!G.balanceShown)eb.hidden=true}}
   // 元気0・隔離所も空 = もう戻ってくるアリがいない。その状態が続いたら、MUTATION RECORDで締める
-  if(wipe&&G.quar.length===0){G.wipeT+=dt;if(G.wipeT>=WIPE_END){G.state="lose";showMutationReport();return}}else G.wipeT=0;
+  if(wipe&&G.quar.length===0&&!G.wipeShown){G.wipeT+=dt;if(G.wipeT>=WIPE_END){G.wipeShown=true;G.wipeT=0;
+    showDialog("終了条件を満たしました","すべての個体が感染しました。",[
+      ["終了する",()=>{G.state="lose";showMutationReport()}],
+      ["続行する",()=>{hideOverlay();document.getElementById("endGameBtn").hidden=false;toast("終了するには、右上の「終了」ボタンを押してください")},true]
+    ])}}else G.wipeT=0;
   if(G.ants.length||G.idle===0)return;
   if(G.oni.some(o=>o.job)||G.quar.some(q=>q.job))return;
   refresh();
@@ -695,9 +699,9 @@ function artCanvas(max){
   for(let i=0;i<L.grid.length;i++)if(L.grid[i]>=0){x.fillStyle=L.palette[L.grid[i]];x.fillRect(i%L.w*s,((i/L.w)|0)*s,s,s)}return c;
 }
 function reportText(ok){
-  const s=G.stats,eaten=G.total-G.left,base=SPECIMEN[current.index],tag=!ok?(s.stalled?"追跡打切":"観測中断"):s.infect===0?"模範個体":s.infect>=8?"警戒レベル：高":"経過観察";
-  let note;if(s.stalled)note="鬼を見失い、追跡不能と判断。観測を打ち切る。";else if(!ok)note="巣は鬼で満たされた。本観測を中断する。";else if(s.infect>=8)note="特に異常は見られませんでした。";else if(s.born===0)note="鬼の出現は確認されなかった。平穏。";else if(s.infect===0)note="鬼の出現を確認。伝染は観測されず。";else if(s.quar>s.cure)note="隔離措置が有効に機能した。";else note="異なる色との接触により、多くの個体が自然に回復した。";
-  const sum=ok?`キューブ${eaten}個を完食。`:s.stalled?`${G.total}個中${eaten}個で、動きが止まった。`:`${G.total}個中${eaten}個で観測途絶。`;
+  const s=G.stats,eaten=G.total-G.left,base=SPECIMEN[current.index],tag=!ok?"追跡打切":s.infect===0?"模範個体":s.infect>=8?"警戒レベル：高":"経過観察";
+  let note;if(s.stalled)note="鬼を見失い、追跡不能と判断。観測を打ち切る。";else if(s.infect>=8)note="特に異常は見られませんでした。";else if(s.born===0)note="鬼の出現は確認されなかった。平穏。";else if(s.infect===0)note="鬼の出現を確認。伝染は観測されず。";else if(s.quar>s.cure)note="隔離措置が有効に機能した。";else note="異なる色との接触により、多くの個体が自然に回復した。";
+  const sum=ok?`キューブ${eaten}個を完食。`:`${G.total}個中${eaten}個で、動きが止まった。`;
   return{eaten,name:base,tag,note,sum,sum2:`鬼の同時最大は${s.peak}匹。`};
 }
 function showReport(ok){
@@ -736,7 +740,7 @@ function showMutationReport(){
   const card=document.getElementById("card");card.className="report";
   card.innerHTML=`<header class="rp-head"><span class="rp-icon"></span><div class="rp-title"><span>ARINKO DOT</span><strong id="ovt">MUTATION RECORD</strong></div><div class="rp-no"><small>REPORT No.</small><b>${no}</b><small>Field Observation Record</small></div></header>
   <div class="stamp" style="color:#6b4a99" aria-label="記録">SNAPSHOT</div>
-  <section class="rp-sum"><h3>プレイヤーの意思による観測終了</h3><p>残り${G.left}個・感染${G.oni.length}匹で均衡し、10秒経過。</p><p>キューブ${eaten}個を確認。</p></section>
+  <section class="rp-sum"><h3>プレイヤーの意思による観測終了</h3><p>${G.idle+G.ants.length===0?`残り${G.left}個で全個体が感染し、10秒経過。`:`残り${G.left}個・感染${G.oni.length}匹の状態で、観測を終了。`}</p><p>キューブ${eaten}個を確認。</p></section>
   <div class="rp-grid"><section class="rp-box spec"><h4>SPECIMEN</h4><div class="rp-art"></div><p class="rp-name">${base}</p><p class="rp-tag">（観測継続中に終了）</p></section>
   <section class="rp-box"><h4>DATA</h4><table>${rows.map(([k,l,v])=>`<tr><th><i class="ic ${k}"></i>${l}</th><td>${v}</td></tr>`).join("")}</table></section></div>
   <section class="rp-box"><h4>AGENT TRAITS</h4><div class="traits">${G.L.palette.map((c,i)=>`<span class="trait"><i style="background:${c}"></i>${G.traits[i].name}</span>`).join("")}</div></section>
@@ -754,7 +758,7 @@ function showDialog(title,text,buttons){
   ov.classList.remove("rp");ov.classList.add("on");row.firstChild.focus();
 }
 function hideOverlay(){ov.classList.remove("on","rp")}
-function win(){G.state="win";showReport(true)}function lose(){G.state="lose";showReport(false)}
+function win(){G.state="win";showReport(true)}
 function stuck(){
   G.state="stuck";const btns=[];if(!G.extra)btns.push(["待機所を1つ増やす",()=>{G.extra=true;G.slots.push(null);G.state="play";hideOverlay();renderNest()}]);
   btns.push(["最初からやり直す",()=>start(),btns.length>0]);showDialog("進めなくなりました","待機所が埋まっていて、どのアリも食べられるキューブに届きません。",btns);

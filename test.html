@@ -261,7 +261,7 @@ const GUIDE_NOCURE="箱をタップすると、箱からアリが出てきて絵
 let noCure=false; // true: 鬼は自然に元へ戻らない(隔離だけが解決策)
 let difficulty="normal"; // "normal" | "chaos"
 const AUTO_LABEL=["手動","オートA","オートB"],AUTO_CODE=["MANUAL","AUTO A","AUTO B"],SPECIMEN=["ヒシガタモザイク","アリンコキノコ","ユウヤケノオカ"];
-let POOL=30,RANGE=3;const QCAP=2,QTIME=6,OMEN=1.6,AUTO_Q=3,STALL_WARN=20,STALL_GRACE=5,IMMUNE=4;
+let POOL=30,RANGE=3;const QCAP=2,QTIME=6,OMEN=1.6,AUTO_Q=3,STALL_WARN=20,STALL_GRACE=5,IMMUNE=4,WIPE_END=10;
 const TRAITS=[{name:"おっとり",pulse:5,speed:4.5},{name:"ふつう",pulse:3.8,speed:5.5},{name:"せっかち",pulse:2.8,speed:6.8}];
 let SPEED=6,GAP=.18;const EMERGE=.6;
 
@@ -273,7 +273,7 @@ function start(){
     cols,slots:new Array(5).fill(null),extra:false,ants:[],left,total:left,state:"play",endT:0,hole:holeOf(L),
     cfg,runNo:seed,mode:autoMode,difficulty,noCure,idle:POOL,oni:[],quar:[],fx:[],clock:0,firstDone:false,omen:-1,nextOniAt:0,autoT:0,
     stats:{infect:0,cure:0,quar:0,born:0,peak:0,stalled:false},stallT:0,stallSnap:null,
-    wipe:false,stallDisabled:false,balanceT:0,balanceShown:false,
+    wipe:false,wipeT:0,stallDisabled:false,balanceT:0,balanceShown:false,
     traits:L.palette.map(()=>TRAITS[Math.floor(Math.random()*TRAITS.length)])};
   hudCache="";hideOverlay();layout();refresh();renderLevels();renderDifficulty();renderAuto();renderNest();renderTray();
   document.getElementById("endGameBtn").hidden=true;
@@ -553,6 +553,8 @@ function step(dt){
   if(wipe!==G.wipe){G.wipe=wipe;const eb=document.getElementById("endGameBtn");
     if(wipe){G.stallT=0;G.stallSnap=null;eb.hidden=false;toast("元気なアリがいません。鬼を隔離すると戻ってきます")}
     else if(!G.balanceShown)eb.hidden=true}
+  // 元気0・隔離所も空 = もう戻ってくるアリがいない。その状態が続いたら、MUTATION RECORDで締める
+  if(wipe&&G.quar.length===0){G.wipeT+=dt;if(G.wipeT>=WIPE_END){G.state="lose";showMutationReport();return}}else G.wipeT=0;
   if(G.ants.length||G.idle===0)return;
   if(G.oni.some(o=>o.job)||G.quar.some(q=>q.job))return;
   refresh();
@@ -678,8 +680,8 @@ function autoStep(dt){
 }
 let hudCache="";
 function renderHud(){
-  const healthy=G.idle+G.ants.length,stallN=G.stallT>=STALL_WARN?Math.max(1,Math.ceil(STALL_WARN+STALL_GRACE-G.stallT)):0,key=`${healthy}|${G.oni.length}|${G.quar.length}|${stallN}`;
-  if(key===hudCache)return;hudCache=key;document.getElementById("hNest").textContent=`元気 ${healthy}/${POOL}`;document.getElementById("hOni").textContent=G.oni.length?`鬼 ${G.oni.length}`:"";document.getElementById("hQ").textContent=G.quar.length?`隔離 ${G.quar.length}/${QCAP}`:"";document.getElementById("hStall").textContent=stallN?`停滞を検知しました。終了まで ${stallN}`:"";
+  const healthy=G.idle+G.ants.length,stallN=G.stallT>=STALL_WARN?Math.max(1,Math.ceil(STALL_WARN+STALL_GRACE-G.stallT)):0,wipeN=G.wipeT>0?Math.max(1,Math.ceil(WIPE_END-G.wipeT)):0,key=`${healthy}|${G.oni.length}|${G.quar.length}|${stallN}|${wipeN}`;
+  if(key===hudCache)return;hudCache=key;document.getElementById("hNest").textContent=`元気 ${healthy}/${POOL}`;document.getElementById("hOni").textContent=G.oni.length?`鬼 ${G.oni.length}`:"";document.getElementById("hQ").textContent=G.quar.length?`隔離 ${G.quar.length}/${QCAP}`:"";document.getElementById("hStall").textContent=wipeN?`元気なアリがいません。観測終了まで ${wipeN}`:stallN?`停滞を検知しました。終了まで ${stallN}`:"";
 }
 cv.addEventListener("pointerdown",e=>{
   if(!G||G.state!=="play"||!G.oni.length)return;

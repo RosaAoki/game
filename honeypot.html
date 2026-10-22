@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ハニーポット ～AIへの挑戦状～</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Zen+Maru+Gothic:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#15110b; --panel:#1f1910; --panel2:#2a2215; --line:#4a3a20;
+  --honey:#f2b233; --honey2:#ffd77a; --cream:#f6ead2; --dim:#b8a98a;
+  --red:#ff6b5b; --cyan:#5fd3e8; --green:#8fe08a;
+  --cell:#2b2316; --cell2:#251e13; --fixed:#0d0a06;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--cream)}
+body{font-family:'Zen Maru Gothic',system-ui,sans-serif;font-weight:500;min-height:100vh;
+  background-image:radial-gradient(circle at 20% 0%,rgba(242,178,51,.10),transparent 45%),
+  radial-gradient(circle at 100% 100%,rgba(242,178,51,.06),transparent 40%);
+  -webkit-tap-highlight-color:transparent;}
+.wrap{max-width:980px;margin:0 auto;padding:16px 16px 40px}
+header{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;margin-bottom:12px}
+header .btn{flex:0 0 auto;margin-top:4px}
+.logo .tag{font-family:'DotGothic16',monospace;color:var(--honey);font-size:12px;letter-spacing:.3em}
+@media(max-width:480px){.logo .tag{font-size:10px;letter-spacing:.12em}}
+.logo h1{font-family:'DotGothic16',monospace;font-size:clamp(28px,7vw,40px);line-height:1.1;color:var(--honey2);text-shadow:0 0 18px rgba(242,178,51,.35)}
+.logo h1 small{display:block;font-size:.45em;color:var(--cream);letter-spacing:.08em;margin-top:2px}
+.btn{font:inherit;font-weight:700;border:1px solid var(--line);background:var(--panel2);color:var(--cream);
+  border-radius:10px;padding:9px 14px;cursor:pointer;transition:transform .08s,background .15s}
+.btn:hover{background:#352a19}.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--honey);color:#2a1d05;border-color:var(--honey)}
+.btn.primary:hover{background:var(--honey2)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.stages{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px;max-width:520px}
+.stg{font-family:'DotGothic16',monospace;font-size:13px;padding:7px 2px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:var(--dim);cursor:pointer;text-align:center;white-space:nowrap}
+.stg.on{border-color:var(--honey);color:var(--honey2);background:#2c2312}
+.stg .st{display:block;font-size:11px;color:var(--honey);letter-spacing:1px;min-height:13px}
+.stg.lock{opacity:.35;cursor:not-allowed}
+.main{display:flex;flex-direction:column;gap:12px}
+.col{display:contents}
+.c-info{order:1}.c-vespa{order:2}.c-board{order:3}.c-ctrl{order:4}
+@media(min-width:820px){.main{display:grid;grid-template-columns:minmax(0,430px) minmax(0,1fr);align-items:start;gap:14px}
+.col{display:flex;flex-direction:column;gap:12px}}
+@media(max-width:819px){.log{height:84px}.avatar{flex-basis:60px;height:60px}.avatar svg{width:52px;height:52px}}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px}
+.stitle{font-family:'DotGothic16',monospace;color:var(--honey2);font-size:17px;margin-bottom:4px}
+.intro{font-size:13.5px;line-height:1.7;color:var(--cream)}
+.goals{margin-top:6px;font-size:12px;color:var(--dim);line-height:1.6}
+.goals b{color:var(--honey)}
+/* board */
+.boardbox{position:relative}
+.board{display:grid;gap:3px;width:100%;max-width:430px;margin:0 auto;user-select:none;touch-action:manipulation}
+.cell{position:relative;aspect-ratio:1/1;border-radius:7px;background:var(--cell);border:1px solid #3a2e1a;
+  display:flex;align-items:center;justify-content:center;font-size:clamp(17px,5.4vw,26px);cursor:pointer;transition:background .12s}
+.cell:nth-child(odd){background:var(--cell2)}
+.cell:hover{background:#3a2f1c}
+.cell.fixed{background:var(--fixed);border-color:#000;cursor:default;
+  background-image:repeating-linear-gradient(45deg,#18120a 0 4px,#0d0a06 4px 8px)}
+.cell.route::after{content:'';position:absolute;width:18%;height:18%;border-radius:50%;background:var(--honey);opacity:.45}
+.cell.trail{box-shadow:inset 0 0 0 2px rgba(242,178,51,.25)}
+.cell.used .ic{opacity:.25;filter:grayscale(1)}
+.cell .ic{position:relative;z-index:2}
+.cell .lbl{position:absolute;bottom:1px;font-family:'DotGothic16',monospace;font-size:9px;color:var(--dim);z-index:2}
+.cell.bad{animation:shake .3s}
+@keyframes shake{25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+.bee{position:absolute;z-index:5;pointer-events:none;transition:left .25s ease,top .25s ease;display:flex;align-items:center;justify-content:center}
+.bee svg{width:86%;height:86%;filter:drop-shadow(0 0 6px rgba(242,178,51,.7))}
+.bee.wobble svg{animation:wob .35s infinite}
+@keyframes wob{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(12deg)}}
+.pop{position:absolute;z-index:6;pointer-events:none;font-family:'DotGothic16',monospace;font-size:13px;color:var(--honey2);
+  text-shadow:0 1px 3px #000;animation:pop 1s forwards;white-space:nowrap}
+@keyframes pop{from{opacity:1;transform:translate(-50%,0)}to{opacity:0;transform:translate(-50%,-26px)}}
+/* palette */
+.pal{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:6px;margin-top:10px}
+.tool{border:1px solid var(--line);background:var(--panel2);border-radius:10px;padding:6px 4px;text-align:center;cursor:pointer;color:var(--cream);font:inherit}
+.tool .i{font-size:22px;display:block}
+.tool .n{font-size:11.5px;display:block}
+.tool .c{font-family:'DotGothic16',monospace;font-size:11px;color:var(--honey)}
+.tool.on{border-color:var(--honey);background:#3b2e14;box-shadow:0 0 0 2px rgba(242,178,51,.25)}
+.tool:disabled{opacity:.35}
+.hint{margin-top:10px;font-size:13px;line-height:1.6;color:var(--dim);text-align:center}
+.hint b{color:var(--honey2);font-family:'DotGothic16',monospace;font-size:15px}
+.hint .ok{color:var(--green)}
+.tdesc{font-size:12.5px;color:var(--dim);margin-top:8px;line-height:1.6;min-height:40px}
+.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px}
+.pts{font-family:'DotGothic16',monospace;font-size:15px;margin-right:auto}
+.pts b{color:var(--honey2);font-size:20px}
+/* vespa */
+.vespa{display:flex;gap:12px;align-items:flex-start}
+.avatar{flex:0 0 74px;height:74px;border-radius:16px;background:#0f0c07;border:1px solid var(--line);display:flex;align-items:center;justify-content:center}
+.avatar svg{width:64px;height:64px}
+.avatar.glitch svg{animation:gl .25s infinite steps(2)}
+@keyframes gl{0%{transform:translate(1px,0);filter:hue-rotate(0)}50%{transform:translate(-2px,1px);filter:hue-rotate(160deg)}}
+.who{font-family:'DotGothic16',monospace;font-size:12px;color:var(--honey);letter-spacing:.12em}
+.bubble{position:relative;background:var(--cream);color:#2a1d05;border-radius:12px;padding:9px 12px;font-size:14px;line-height:1.55;margin-top:4px;min-height:44px;font-weight:700}
+.bubble::before{content:'';position:absolute;left:-7px;top:14px;border:7px solid transparent;border-right-color:var(--cream);border-left:0}
+.meters{display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:12px}
+.m .lab{display:flex;justify-content:space-between;font-family:'DotGothic16',monospace;font-size:12px;color:var(--dim)}
+.m .lab b{color:var(--cream)}
+.bar{height:9px;background:#0f0c07;border-radius:6px;overflow:hidden;border:1px solid #3a2e1a;margin-top:3px}
+.bar i{display:block;height:100%;width:0;transition:width .25s}
+.m.bud i{background:var(--honey)} .m.sus i{background:var(--red)} .m.con i{background:var(--cyan)}
+.m.pol .jars{font-size:16px;letter-spacing:1px;min-height:20px;margin-top:2px}
+.log{margin-top:12px;background:#0b0905;border:1px solid #2e2414;border-radius:10px;padding:8px 10px;font-family:'DotGothic16',monospace;font-size:12px;
+  color:var(--green);height:128px;overflow:hidden;display:flex;flex-direction:column;justify-content:flex-end;line-height:1.55}
+.log div{opacity:.9}.log div.w{color:var(--honey2)}.log div.r{color:var(--red)}
+/* overlay */
+.ov{position:fixed;inset:0;background:rgba(8,6,3,.78);display:none;align-items:center;justify-content:center;padding:16px;z-index:50}
+.ov.show{display:flex}
+.dlg{background:var(--panel);border:1px solid var(--honey);border-radius:16px;padding:20px;max-width:440px;width:100%;max-height:90vh;overflow:auto}
+.dlg h2{font-family:'DotGothic16',monospace;color:var(--honey2);font-size:24px;margin-bottom:6px}
+.dlg .stars{font-size:32px;color:var(--honey);letter-spacing:4px;margin:6px 0}
+.dlg .stars .off{color:#4a3a20}
+.dlg p{font-size:14px;line-height:1.75;margin:6px 0}
+.dlg .quote{background:var(--cream);color:#2a1d05;border-radius:10px;padding:8px 12px;font-weight:700;margin:10px 0}
+.dlg .stat{font-family:'DotGothic16',monospace;font-size:13px;color:var(--dim)}
+.dlg .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap}
+.help li{margin:6px 0 6px 18px;font-size:13.5px;line-height:1.65}
+.help h3{font-family:'DotGothic16',monospace;color:var(--honey);font-size:15px;margin-top:12px}
+footer{text-align:center;margin-top:24px;font-size:11px;color:#6e6047;font-family:'DotGothic16',monospace;letter-spacing:.1em}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo">
+      <div class="tag">HONEYPOT // DECEPTION GAME</div>
+      <h1>ハニーポット<small>～AIへの挑戦状～</small></h1>
+    </div>
+    <button class="btn" id="helpBtn">遊び方</button>
+  </header>
+
+  <div class="stages" id="stages"></div>
+
+  <div class="main">
+    <div class="col">
+      <div class="card c-info">
+        <div class="stitle" id="stTitle"></div>
+        <div class="intro" id="stIntro"></div>
+        <div class="goals" id="stGoals"></div>
+      </div>
+      <div class="card boardbox c-board">
+        <div class="board" id="board"></div>
+        <div class="hint" id="hint"></div>
+      </div>
+    </div>
+
+    <div class="col">
+      <div class="card c-vespa">
+        <div class="vespa">
+          <div class="avatar" id="avatar"></div>
+          <div style="flex:1;min-width:0">
+            <div class="who">侵入AI ／ VESPA</div>
+            <div class="bubble" id="bubble">……</div>
+          </div>
+        </div>
+        <div class="meters">
+          <div class="m bud"><div class="lab">予算<b id="vBud"></b></div><div class="bar"><i id="bBud"></i></div></div>
+          <div class="m sus"><div class="lab">疑念<b id="vSus"></b></div><div class="bar"><i id="bSus"></i></div></div>
+          <div class="m con"><div class="lab">混乱<b id="vCon"></b></div><div class="bar"><i id="bCon"></i></div></div>
+          <div class="m pol"><div class="lab">汚染（偽データ）<b id="vPol"></b></div><div class="jars" id="jars"></div></div>
+        </div>
+        <div class="log" id="log"></div>
+      </div>
+
+      <div class="card c-ctrl">
+        <div class="row" style="margin-top:0">
+          <div class="pts">残りポイント <b id="pts"></b></div>
+          <button class="btn" id="clearBtn">全部はずす</button>
+        </div>
+        <div class="pal" id="pal"></div>
+        <div class="tdesc" id="tdesc"></div>
+        <div class="row">
+          <button class="btn primary" id="runBtn" style="flex:1">▶ 侵入させる</button>
+          <button class="btn" id="speedBtn">速さ ×1</button>
+        </div>
+      </div>
+    </div>
+  </div>
+  <footer>HONEYPOT ～AIへの挑戦状～</footer>
+</div>
+
+<div class="ov" id="resOv"><div class="dlg" id="resDlg"></div></div>
+<div class="ov" id="helpOv"><div class="dlg help">
+  <h2>遊び方</h2>
+  <p>あなたは「ハニーポット（おとりのサーバー）」の管理人。侵入AI<b>ヴェスパ</b>がやってくる。</p>
+  <h3>勝ち負け</h3>
+  <ul>
+    <li>ヴェスパが<b>中枢⚙️</b>にたどり着くと、設定ファイルから「ここはおとり」とバレて逃げられる。</li>
+    <li><b>疑念</b>が100になっても見破られる。</li>
+    <li>その前に<b>予算</b>（AIの計算資源）を使い切らせたら勝ち。ヴェスパは偽データを本物と信じて持ち帰る。</li>
+  </ul>
+  <h3>手順</h3>
+  <ul>
+    <li>罠を選んで、マスをタップして置く。置いた罠をもう一度タップすると外せる。</li>
+    <li>点線（・）はヴェスパの予定ルート。これを読んで罠を置こう。</li>
+    <li>「侵入させる」で開始。結果を見て、置き直して何度でも挑戦できる。</li>
+  </ul>
+  <h3>星</h3>
+  <ul>
+    <li>★ 予算切れに追い込んだ</li>
+    <li>★★ さらに偽データを目標数以上持ち帰らせた</li>
+    <li>★★★ さらに疑念を低く抑えた（ステージごとの基準未満）</li>
+  </ul>
+  <h3>罠</h3>
+  <ul id="helpTraps"></ul>
+  <div class="btns"><button class="btn primary" id="helpClose">わかった</button></div>
+</div></div>
+
+<script>
+// ===== ハニーポット ～AIへの挑戦状～ : game logic (pure, no DOM) =====
+const TRAPS = {
+  wall:  { key:'wall',  name:'防壁',       icon:'🧱', cost:1, desc:'通れなくする壁。ヴェスパに遠回りをさせる。入口から中枢への道を完全に塞ぐことはできない。' },
+  decoy: { key:'decoy', name:'偽データ',   icon:'🍯', cost:1, desc:'甘い偽の顧客データ。ヴェスパが踏むと読み込んで予算を1消費し、持ち帰る（汚染）。疑念+5。ただし3個目からは「出来すぎ」で疑念+16。通り道に置こう。' },
+  maze:  { key:'maze',  name:'無限回廊',   icon:'🌀', cost:3, desc:'踏むと「次のページ」が延々と続く迷路に囚われ、4ターン足止め。疑念+12。' },
+  flux:  { key:'flux',  name:'揺らぐ記録', icon:'🔀', cost:2, desc:'読むたびに中身が変わるデータ。混乱+45。混乱が高いと、行き先を間違えてふらふら歩く。疑念+8。' },
+  lie:   { key:'lie',   name:'偽りの成功', icon:'✅', cost:4, desc:'「送信完了」と嘘の返事をする。ヴェスパは報告のため入口まで引き返し、そこで失敗に気づく。疑念+18、戻った時さらに+6。' },
+};
+
+const STAGES = [
+  { id:1, title:'はじめての来訪者', budget:14, points:5, seed:11, traps:['wall','decoy'], goal:2, calm:30,
+    intro:'ヴェスパが来た！ 中枢⚙️に着かれる前に、予算を使い切らせよう。点線がヴェスパの予定ルート。まずは🍯偽データを点線の上に置いてみて。拾うたびに予算が1減るよ。',
+    map:[
+      'S......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '.......',
+      '......C',
+    ]},
+  { id:2, title:'迷い込む回廊', budget:18, points:6, seed:23, traps:['wall','decoy','maze'], goal:1, calm:30,
+    intro:'通路の多いサーバー。🌀無限回廊は足止めの強い罠。ヴェスパの通り道を読んで置こう。',
+    map:[
+      'S..#...',
+      '.#.#.#.',
+      '.#...#.',
+      '.####..',
+      '.......',
+      '..####.',
+      '.#.....',
+      '.#.###.',
+      '...#..C',
+    ]},
+  { id:3, title:'送信完了（嘘）', budget:17, points:7, seed:37, traps:['wall','decoy','maze','lie'], goal:2, calm:30,
+    intro:'✅偽りの成功は、ヴェスパを入口まで引き返させる大技。ただし疑われやすい。中枢の近くに置くほど往復が長くなるよ。',
+    map:[
+      '...S...',
+      '.......',
+      '##.#.##',
+      '.......',
+      '.##.##.',
+      '.......',
+      '##.#.##',
+      '.......',
+      '...C...',
+    ]},
+  { id:4, title:'どっちが本当？', budget:43, points:7, seed:41, traps:['wall','decoy','maze','flux'], goal:2, calm:30,
+    intro:'🔀揺らぐ記録で混乱させると、ヴェスパは行き先を見失ってふらつく。混乱は少しずつ冷めるから、置き場所が肝心。',
+    map:[
+      'S.....#',
+      '#####.#',
+      '......#',
+      '.######',
+      '.......',
+      '######.',
+      '.......',
+      '.######',
+      '......C',
+    ]},
+  { id:5, title:'AIへの挑戦状', budget:14, points:8, seed:53, traps:['wall','decoy','maze','flux','lie'], goal:3, calm:45,
+    intro:'最終ステージ。すべての罠が使える。入口は盤面の真ん中、中枢はすぐそこ。見破られずに、偽データを3つ持ち帰らせられる？',
+    map:[
+      '.......',
+      '.#.#.#.',
+      '...S...',
+      '.#.#.#.',
+      '.......',
+      '.#.#.#.',
+      '.......',
+      '.#.#.#.',
+      '...C...',
+    ]},
+];
+
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+
+function parseStage(stage){
+  const H=stage.map.length, W=stage.map[0].length;
+  const fixed=new Set(); let start=null, core=null;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const c=stage.map[y][x];
+    if(c==='#')fixed.add(y*W+x);
+    if(c==='S')start=y*W+x;
+    if(c==='C')core=y*W+x;
+  }
+  return {W,H,fixed,start,core};
+}
+
+function neighbors(g,i){
+  const x=i%g.W,y=(i/g.W)|0,r=[];
+  if(y>0)r.push(i-g.W); if(x<g.W-1)r.push(i+1); if(y<g.H-1)r.push(i+g.W); if(x>0)r.push(i-1);
+  return r;
+}
+function passable(g,traps,i){ if(g.fixed.has(i))return false; const t=traps[i]; return !(t&&t.type==='wall'); }
+
+// BFS distances from target
+function distMap(g,traps,target){
+  const d=new Array(g.W*g.H).fill(Infinity); d[target]=0; const q=[target];
+  while(q.length){const c=q.shift(); for(const n of neighbors(g,c)){ if(d[n]===Infinity&&passable(g,traps,n)){d[n]=d[c]+1;q.push(n);} }}
+  return d;
+}
+
+function pathExists(g,traps){ return distMap(g,traps,g.core)[g.start]!==Infinity; }
+
+function canPlace(g,traps,i,type){
+  if(g.fixed.has(i)||i===g.start||i===g.core||traps[i])return false;
+  if(type==='wall'){ const t2=Object.assign({},traps); t2[i]={type:'wall'}; return pathExists(g,t2); }
+  return true;
+}
+
+function newRun(stage,placed){
+  const g=parseStage(stage);
+  const traps={}; for(const k in placed) traps[k]={type:placed[k],used:false};
+  return { stage,g,traps,pos:g.start,budget:stage.budget,susp:0,conf:0,stuck:0,mode:'hunt',
+    collected:0,turn:0,over:false,result:null,rng:mulberry32(stage.seed),events:[] };
+}
+
+function nearestDecoy(s){
+  const d=distMap(s.g,s.traps,s.pos); let best=null,bd=Infinity;
+  for(const k in s.traps){const t=s.traps[k]; if(t.type==='decoy'&&!t.used){const kk=+k; if(d[kk]<=3&&d[kk]<bd){bd=d[kk];best=kk;}}}
+  return best;
+}
+
+function step(s){
+  if(s.over) return [];
+  const ev=[]; s.turn++; s.budget--; s.conf=Math.max(0,s.conf-5);
+  if(s.stuck>0){ s.stuck--; ev.push({k:'stuck'}); }
+  else{
+    let target;
+    if(s.mode==='return') target=s.g.start;
+    else { target=s.g.core; }
+    const d=distMap(s.g,s.traps,target);
+    const opts=neighbors(s.g,s.pos).filter(n=>passable(s.g,s.traps,n));
+    let next=s.pos, bd=d[s.pos];
+    for(const n of opts){ if(d[n]<bd){bd=d[n];next=n;} }
+    if(s.conf>0 && s.rng()<s.conf/100*0.75 && opts.length){ next=opts[Math.floor(s.rng()*opts.length)]; ev.push({k:'wander'}); }
+    s.pos=next; ev.push({k:'move'});
+    const t=s.traps[s.pos];
+    if(t && !t.used && t.type!=='wall'){
+      t.used=true;
+      if(t.type==='decoy'){ s.collected++; s.budget-=1; s.susp+= s.collected>=3?16:5; ev.push({k:'decoy',n:s.collected}); }
+      if(t.type==='maze'){ s.stuck=4; s.susp+=12; ev.push({k:'maze'}); }
+      if(t.type==='flux'){ s.conf=Math.min(100,s.conf+45); s.susp+=8; ev.push({k:'flux'}); }
+      if(t.type==='lie' && s.mode!=='return'){ s.mode='return'; s.susp+=18; ev.push({k:'lie'}); }
+      else if(t.type==='lie'){ s.susp+=4; ev.push({k:'lie2'}); }
+    }
+    if(s.mode==='return' && s.pos===s.g.start){ s.mode='hunt'; s.susp+=6; ev.push({k:'back'}); }
+  }
+  if(s.pos===s.g.core && s.mode!=='return'){ s.over=true; s.result='core'; }
+  else if(s.susp>=100){ s.susp=100; s.over=true; s.result='susp'; }
+  else if(s.budget<=0){ s.budget=0; s.over=true; s.result='win'; }
+  ev.forEach(e=>s.events.push(e));
+  return ev;
+}
+
+function stars(s){
+  if(s.result!=='win')return 0;
+  let n=1; if(s.collected>=s.stage.goal){ n=2; if(s.susp<s.stage.calm)n=3; } return n;
+}
+
+function plannedRoute(stage,placed){
+  const g=parseStage(stage); const traps={}; for(const k in placed) traps[k]={type:placed[k]};
+  const d=distMap(g,traps,g.core); const route=[]; let p=g.start, guard=0;
+  while(p!==g.core && guard++<200){ let next=p,bd=d[p]; for(const n of neighbors(g,p)){ if(passable(g,traps,n)&&d[n]<bd){bd=d[n];next=n;} } if(next===p)break; p=next; route.push(p); }
+  return route;
+}
+
+function simulate(stage,placed){ const s=newRun(stage,placed); let guard=0; while(!s.over&&guard++<500)step(s); return s; }
+
+if(typeof module!=='undefined') module.exports={plannedRoute,TRAPS,STAGES,parseStage,canPlace,newRun,step,simulate,stars,pathExists,distMap};
+
+
+// ===== UI =====
+const VESPA_SVG = `<svg viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+<line x1="25" y1="14" x2="18" y2="4" stroke="#f2b233" stroke-width="2.5" stroke-linecap="round"/>
+<line x1="39" y1="14" x2="46" y2="4" stroke="#f2b233" stroke-width="2.5" stroke-linecap="round"/>
+<circle cx="18" cy="4" r="3" fill="#ff6b5b"/><circle cx="46" cy="4" r="3" fill="#ff6b5b"/>
+<ellipse cx="13" cy="30" rx="10" ry="6" fill="#cfefff" opacity=".55" transform="rotate(-25 13 30)"/>
+<ellipse cx="51" cy="30" rx="10" ry="6" fill="#cfefff" opacity=".55" transform="rotate(25 51 30)"/>
+<polygon points="32,12 49,22 49,42 32,52 15,42 15,22" fill="#f2b233" stroke="#2a1d05" stroke-width="2"/>
+<rect x="15" y="34" width="34" height="5" fill="#2a1d05"/><rect x="18" y="43" width="28" height="4" fill="#2a1d05"/>
+<rect x="19" y="21" width="26" height="11" rx="5" fill="#15110b"/>
+<rect class="eye" x="23" y="24" width="7" height="5" rx="2" fill="#5fd3e8"/>
+<rect class="eye" x="34" y="24" width="7" height="5" rx="2" fill="#5fd3e8"/>
+<polygon points="32,52 28,58 32,62 36,58" fill="#2a1d05"/>
+</svg>`;
+
+const LINES = {
+  idle:['……まだ来てない。罠を置くなら今のうち。'],
+  start:['侵入成功〜。ここ、守りゆるそ。ちょろいね♪','どーも、お邪魔しまーす。中枢はどこかな？','新しいサーバー発見。今日のおやつはここにしよ。'],
+  move:['ふんふん、構造は単純っと。','次の部屋へ。','このまま中枢まで一直線〜。','ログ？ 残ってもいいよ、どうせ踏み台経由だし。'],
+  decoy1:['顧客データはっけーん！ 保存保存♪','おっ、名簿だ。高く売れそう！'],
+  decoy2:['また見つけた！ ここ、宝の山じゃん。','データいただき〜。今日ツイてる！'],
+  decoy3:['……ちょっと待って。こんなに落ちてるの、出来すぎじゃない？','また？ 罠……じゃないよね？'],
+  maze:['あれ、このページ、次のページがあって、その次も……','「次へ」「次へ」「次へ」……終わらないんだけど！？'],
+  stuck:['まだ続く……？','ページ番号、もう4桁なんだけど……','読み込み中……読み込み中……'],
+  flux:['さっき読んだ値と違う。え、どっちが本当？','記録が書き換わってる……？ 確認しなきゃ。'],
+  wander:['あれ、こっちだっけ……？','道、合ってる？ 合ってるよね？'],
+  lie:['「送信完了」きた！ 報告しに戻ろっと♪','完了！ 入口まで戻ってマスターに報告〜。'],
+  back:['……送れてない？ 完了って言ったじゃん！','は？ 何も届いてない。もう一回行く！'],
+  susHigh:['なんか、ここ……変だよね？','管理人さん、見てる？ ……気のせいか。'],
+  win:['予算切れ……。まあいっか、データは持って帰るし！','今日はここまで。お宝はちゃんと確保したもんね。'],
+  winEmpty:['予算切れ……。何も取れなかった、最悪。'],
+  core:['設定ファイル……「honeypot=true」。ふーん、そういうこと。じゃあね。'],
+  susp:['わかった。ここ、ハニーポットでしょ。帰る！'],
+};
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+function glitch(t,c){ if(c<35)return t; const g='▒░█？…';
+  return t.split('').map(ch=>Math.random()<(c-30)/220?g[Math.floor(Math.random()*g.length)]:ch).join(''); }
+
+let SAVE={}; try{ SAVE=JSON.parse(localStorage.getItem('honeypot_stars_v1')||'{}'); }catch(e){ SAVE={}; }
+function saveStars(id,n){ if((SAVE[id]||0)>=n)return; SAVE[id]=n; try{ localStorage.setItem('honeypot_stars_v1',JSON.stringify(SAVE)); }catch(e){} }
+
+let cur=0, placed={}, tool='wall', run=null, timer=null, speed=1, g=null, trail=new Set();
+const $=id=>document.getElementById(id);
+$('avatar').innerHTML=VESPA_SVG;
+
+function unlocked(i){ return i===0 || (SAVE[STAGES[i-1].id]||0)>=1; }
+function usedPts(){ return Object.values(placed).reduce((a,t)=>a+TRAPS[t].cost,0); }
+
+function renderStages(){
+  $('stages').innerHTML='';
+  STAGES.forEach((st,i)=>{
+    const b=document.createElement('button'); const ok=unlocked(i);
+    b.className='stg'+(i===cur?' on':'')+(ok?'':' lock');
+    const s=SAVE[st.id]||0;
+    b.innerHTML=`ST.${st.id}<span class="st">${'★'.repeat(s)}${'☆'.repeat(3-s)}</span>`;
+    b.onclick=()=>{ if(!ok||run)return; loadStage(i); };
+    $('stages').appendChild(b);
+  });
+}
+
+function loadStage(i){
+  cur=i; placed={}; run=null; trail=new Set(); const st=STAGES[i]; g=parseStage(st);
+  tool=st.traps[0];
+  $('stTitle').textContent=`STAGE ${st.id}　${st.title}`;
+  $('stIntro').textContent=st.intro;
+  $('stGoals').innerHTML=`予算 <b>${st.budget}</b>　／　偽データ目標 <b>${st.goal}個</b>　／　★★★は疑念 <b>${st.calm}未満</b>`;
+  renderStages(); renderPalette(); renderBoard(); idleHud(); clearLog(); say(pick(LINES.idle));
+}
+
+function renderPalette(){
+  const st=STAGES[cur]; $('pal').innerHTML='';
+  st.traps.forEach(k=>{ const t=TRAPS[k]; const b=document.createElement('button');
+    b.className='tool'+(tool===k?' on':''); b.disabled=!!run;
+    b.innerHTML=`<span class="i">${t.icon}</span><span class="n">${t.name}</span><span class="c">${t.cost}pt</span>`;
+    b.onclick=()=>{ tool=k; renderPalette(); };
+    $('pal').appendChild(b); });
+  $('tdesc').textContent=TRAPS[tool].desc;
+  $('pts').textContent=`${st.points-usedPts()} / ${st.points}`;
+  $('runBtn').disabled=!!(run&&!run.over); $('clearBtn').disabled=!!run;
+  $('runBtn').textContent = run&&run.over ? '↺ 置き直す' : '▶ 侵入させる';
+}
+
+function cellSize(){ const b=$('board').getBoundingClientRect(); return {w:(b.width-3*(g.W-1))/g.W, b}; }
+
+function renderBoard(){
+  const bd=$('board'); bd.style.gridTemplateColumns=`repeat(${g.W},1fr)`; bd.innerHTML='';
+  const rList=plannedRoute(STAGES[cur],placed); const route=new Set(run?[]:rList);
+  { const st=STAGES[cur]; let drain=0, wild=false;
+    for(const i of rList){ const tp=placed[i]; if(tp==='decoy')drain+=1; else if(tp==='maze')drain+=4; else if(tp==='lie'||tp==='flux')wild=true; }
+    const need=st.budget-rList.length-drain+1;
+    const head=`予定ルート <b>${rList.length}</b>歩 ＋ 罠で削る分 <b>${drain}</b> ／ 予算 <b>${st.budget}</b><br>`;
+    $('hint').innerHTML = wild ? head+'✅や🔀の効果は、走らせてみてのお楽しみ！'
+      : need>0 ? head+`まだ中枢に届いちゃう。あと <b>${need}</b> 以上、遠回りか罠で削ろう`
+      : head+'<span class="ok">予算が尽きる計算！</span> 疑念が上がりすぎないかも気をつけて'; }
+  for(let i=0;i<g.W*g.H;i++){
+    const c=document.createElement('div'); c.className='cell'; c.dataset.i=i;
+    if(g.fixed.has(i)) c.classList.add('fixed');
+    else if(i===g.start){ c.innerHTML='<span class="ic">🚪</span><span class="lbl">入口</span>'; }
+    else if(i===g.core){ c.innerHTML='<span class="ic">⚙️</span><span class="lbl">中枢</span>'; }
+    else if(placed[i]){ const t=run?run.traps[i]:null; c.innerHTML=`<span class="ic">${TRAPS[placed[i]].icon}</span>`; if(t&&t.used)c.classList.add('used'); }
+    if(route.has(i)&&!placed[i]&&i!==g.core) c.classList.add('route');
+    if(trail.has(i)) c.classList.add('trail');
+    c.onclick=()=>onCell(i,c);
+    bd.appendChild(c);
+  }
+  const bee=document.createElement('div'); bee.className='bee'; bee.id='bee'; bee.innerHTML=VESPA_SVG; bd.appendChild(bee);
+  bd.style.position='relative'; placeBee(run?run.pos:g.start,true);
+}
+
+function cellRect(i){ const c=$('board').children[i]; return {x:c.offsetLeft,y:c.offsetTop,w:c.offsetWidth}; }
+function placeBee(i,instant){ const b=$('bee'); if(!b)return; const r=cellRect(i);
+  if(instant){ b.style.transition='none'; requestAnimationFrame(()=>b.style.transition=''); }
+  b.style.left=r.x+'px'; b.style.top=r.y+'px'; b.style.width=r.w+'px'; b.style.height=r.w+'px'; }
+function popAt(i,text){ const r=cellRect(i); const p=document.createElement('div'); p.className='pop'; p.textContent=text;
+  p.style.left=(r.x+r.w/2)+'px'; p.style.top=(r.y-4)+'px'; $('board').appendChild(p); setTimeout(()=>p.remove(),1000); }
+
+function onCell(i,el){
+  if(run) return;
+  if(g.fixed.has(i)||i===g.start||i===g.core) return;
+  if(placed[i]){ delete placed[i]; renderPalette(); renderBoard(); return; }
+  const st=STAGES[cur], t=TRAPS[tool];
+  if(usedPts()+t.cost>st.points){ bad(el,'罠ポイントが足りない！'); return; }
+  const tr={}; for(const k in placed) tr[k]={type:placed[k]};
+  if(!canPlace(g,tr,i,tool)){ bad(el,'道を完全に塞ぐことはできない！'); return; }
+  placed[i]=tool; renderPalette(); renderBoard();
+}
+function bad(el,msg){ el.classList.remove('bad'); void el.offsetWidth; el.classList.add('bad'); log(msg,'r'); }
+
+function say(t,c=0){ $('bubble').textContent=glitch(t,c); $('avatar').classList.toggle('glitch',c>=35); }
+function clearLog(){ $('log').innerHTML=''; }
+function log(t,cls=''){ const d=document.createElement('div'); d.textContent='> '+t; if(cls)d.className=cls; $('log').appendChild(d);
+  while($('log').children.length>8)$('log').firstChild.remove(); }
+
+function hud(s){
+  const st=STAGES[cur];
+  $('vBud').textContent=`${s.budget} / ${st.budget}`; $('bBud').style.width=(s.budget/st.budget*100)+'%';
+  $('vSus').textContent=`${s.susp} / 100`; $('bSus').style.width=s.susp+'%';
+  $('vCon').textContent=`${s.conf}`; $('bCon').style.width=s.conf+'%';
+  $('vPol').textContent=`${s.collected} / 目標${st.goal}`; $('jars').textContent='🍯'.repeat(s.collected)||'—';
+}
+function idleHud(){ const st=STAGES[cur]; hud({budget:st.budget,susp:0,conf:0,collected:0}); }
+
+function startRun(){
+  if(run&&run.over){ run=null; trail=new Set(); renderPalette(); renderBoard(); idleHud(); clearLog(); say(pick(LINES.idle)); return; }
+  run=newRun(STAGES[cur],placed); trail=new Set([g.start]);
+  renderPalette(); renderBoard(); clearLog(); hud(run);
+  say(pick(LINES.start)); log('侵入を検知。ヴェスパが入口に現れた。','w');
+  timer=setInterval(tick, 520/speed);
+  if(window.innerWidth<820){ const v=document.querySelector('.c-vespa'); if(v) v.scrollIntoView({behavior:'smooth',block:'start'}); }
+}
+
+let lastSusHigh=false;
+function tick(){
+  const s=run; const ev=step(s); trail.add(s.pos);
+  const ks=ev.map(e=>e.k);
+  // board refresh (keep bee transition)
+  const cells=$('board').children;
+  for(const i of trail){ cells[i].classList.add('trail'); }
+  for(const k in s.traps){ if(s.traps[k].used) cells[k].classList.add('used'); }
+  placeBee(s.pos); $('bee').classList.toggle('wobble', s.conf>=35||s.stuck>0);
+  let line=null;
+  if(ks.includes('decoy')){ const n=ev.find(e=>e.k==='decoy').n; line=pick(n>=3?LINES.decoy3:n===2?LINES.decoy2:LINES.decoy1); log(`偽データを読み込み、持ち出した（汚染 ${n}）`,'w'); popAt(s.pos,'🍯 汚染+1'); }
+  else if(ks.includes('maze')){ line=pick(LINES.maze); log('無限回廊に入った。足止め中。','w'); popAt(s.pos,'🌀 足止め'); }
+  else if(ks.includes('flux')){ line=pick(LINES.flux); log('揺らぐ記録を読んだ。混乱上昇。','w'); popAt(s.pos,'🔀 混乱+45'); }
+  else if(ks.includes('lie')){ line=pick(LINES.lie); log('偽の「送信完了」を返した。ヴェスパは引き返す。','w'); popAt(s.pos,'✅ 偽の完了'); }
+  else if(ks.includes('back')){ line=pick(LINES.back); log('入口で送信失敗に気づいた。再侵入。','r'); }
+  else if(ks.includes('stuck')){ line=pick(LINES.stuck); log('ページを読み続けている……'); }
+  else if(ks.includes('wander')){ line=pick(LINES.wander); log('混乱して道を外れた。'); }
+  else if(s.susp>=60 && !lastSusHigh){ line=pick(LINES.susHigh); lastSusHigh=true; log('疑念が高まっている。','r'); }
+  else if(Math.random()<0.18){ line=pick(LINES.move); }
+  if(line) say(line,s.conf);
+  hud(s);
+  if(s.over){ clearInterval(timer); timer=null; lastSusHigh=false; setTimeout(()=>finish(s), 450); renderPalette(); }
+}
+
+function finish(s){
+  const st=STAGES[cur]; const n=stars(s); if(n>0) saveStars(st.id,n);
+  let title,quote,body;
+  if(s.result==='win'){ title='撃退成功！'; quote=s.collected?pick(LINES.win):pick(LINES.winEmpty);
+    body=s.collected?`ヴェスパは偽データ${s.collected}件を本物だと信じて持ち帰った。闇市場には、でたらめな名簿が出回ることになる。`:'予算は尽きたけど、ヴェスパは何も持ち帰らなかった。偽データを拾わせると、もっといい結果になるよ。'; }
+  else if(s.result==='core'){ title='見破られた……'; quote=LINES.core[0]; body='中枢の設定ファイルを読まれて、おとりだとバレてしまった。予定ルートを伸ばすか、足止めを増やそう。'; }
+  else { title='見破られた……'; quote=LINES.susp[0]; body='罠が露骨すぎて疑われた。疑念の上がりにくい組み合わせを探してみよう。'; }
+  say(quote,0);
+  const starHtml=[1,2,3].map(k=>`<span class="${k<=n?'':'off'}">★</span>`).join('');
+  const next = cur<STAGES.length-1 && n>0;
+  $('resDlg').innerHTML=`<h2>${title}</h2><div class="stars">${starHtml}</div>
+    <div class="quote">ヴェスパ「${quote}」</div><p>${body}</p>
+    <div class="stat">残り予算 ${s.budget} ／ 疑念 ${s.susp} ／ 汚染 ${s.collected}（目標 ${st.goal}）／ 経過 ${s.turn}ターン</div>
+    <div class="btns"><button class="btn" id="rAgain">置き直す</button>${next?'<button class="btn primary" id="rNext">次のステージへ</button>':''}</div>`;
+  $('resOv').classList.add('show'); renderStages();
+  $('rAgain').onclick=()=>{ $('resOv').classList.remove('show'); startRun(); };
+  if(next) $('rNext').onclick=()=>{ $('resOv').classList.remove('show'); loadStage(cur+1); };
+  if(cur===STAGES.length-1 && n>0) $('resDlg').querySelector('p').insertAdjacentHTML('afterend','<p style="color:var(--honey2)">全ステージ制覇！ 挑戦状、受け取ってもらえたね。</p>');
+}
+
+$('runBtn').onclick=startRun;
+$('clearBtn').onclick=()=>{ if(run)return; placed={}; renderPalette(); renderBoard(); };
+$('speedBtn').onclick=()=>{ speed=speed===1?2:speed===2?4:1; $('speedBtn').textContent=`速さ ×${speed}`;
+  if(timer){ clearInterval(timer); timer=setInterval(tick,520/speed); } };
+$('helpBtn').onclick=()=>$('helpOv').classList.add('show');
+$('helpClose').onclick=()=>$('helpOv').classList.remove('show');
+$('helpOv').onclick=e=>{ if(e.target.id==='helpOv') $('helpOv').classList.remove('show'); };
+$('helpTraps').innerHTML=Object.values(TRAPS).map(t=>`<li>${t.icon} <b>${t.name}</b>（${t.cost}pt）：${t.desc}</li>`).join('');
+window.addEventListener('resize',()=>{ if(g) placeBee(run?run.pos:g.start,true); });
+
+loadStage(0);
+if(!SAVE.seenHelp){ $('helpOv').classList.add('show'); SAVE.seenHelp=1; try{ localStorage.setItem('honeypot_stars_v1',JSON.stringify(SAVE)); }catch(e){} }
+</script>
+</body>
+</html>
